@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario - Carbon Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f7fa;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #1A2035;
+            border-bottom: 2px solid #3B82F6;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #1A2035;
+            margin-top: 30px;
+        }
+        code {
+            background-color: #e0e7ff;
+            color: #4338ca;
+            padding: 3px 6px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        .admin-tag {
+            background-color: #FEE2E2;
+            color: #EF4444;
+            font-size: 0.8em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Manual de Usuario - Carbon Tracker</h1>
+    <p>Bienvenido al manual de usuario de Carbon Tracker. Aquí encontrarás una guía corta sobre cómo utilizar las funciones principales de la aplicación.</p>
+
+    <h2>Pantallas Principales</h2>
+    <p>La aplicación se divide en secciones accesibles desde el panel lateral izquierdo:</p>
+    <ul>
+        <li><b>EMPRESAS:</b> Permite ver listados, gestionar acciones y agregar registros.</li>
+        <li><b>EMISIONES:</b> Gestión completa del cálculo de huella de carbono.</li>
+        <li><b>OPTIMIZACIÓN:</b> Análisis inteligente y reportes.</li>
+        <li><b>ADMINISTRACIÓN:</b> Gestión de usuarios y auditoría (Solo visible para administradores).</li>
+    </ul>
+
+    <h2>Gestión de Empresas</h2>
+    <ul>
+        <li><b>Ver Empresas:</b> Muestra un listado de todas las empresas registradas. Desde aquí puedes buscar, editar, eliminar o ver las emisiones de una empresa específica.</li>
+        <li><b>Añadir Empresa:</b> Abre un formulario para registrar una nueva empresa especificando nombre y sector.</li>
+        <li><b>Buscar Empresa:</b> Usa la barra de búsqueda para filtrar la lista por nombre o sector.</li>
+        <li><b>Acciones de Empresa:</b> En la columna "ACCIONES":
+            <ul>
+                <li>(Icono de Ojo): Ver todas las emisiones de esa empresa.</li>
+                <li>(Icono de Gráfico): Abrir Dashboard específico de esa empresa.</li>
+                <li>(Icono de Ubicación +): Gestionar Sedes/Sucursales.</li>
+                <li>(Icono de Lápiz): Editar nombre o sector.</li>
+                <li>(Icono de Canasta): Eliminar la empresa y sus emisiones.</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Gestión de Emisiones</h2>
+    <ul>
+        <li><b>Ver Todas las Emisiones:</b> Muestra un listado completo de los registros de emisiones.</li>
+        <li><b>Añadir Emisión:</b> Abre un formulario para registrar una nueva emisión. Si eres administrador, podrás cambiar la empresa asignada; si eres empleado, se asignará a tu empresa o a la seleccionada.</li>
+        <li><b>Buscar Emisiones:</b> Filtra por nombre de empresa, tipo o fecha.</li>
+        <li><b>Acciones de Emisión:</b>
+            <ul>
+                <li>(Icono de Lápiz): Modificar valores de la emisión.</li>
+                <li>(Icono de Canasta): Eliminar permanentemente el registro.</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Optimización</h2>
+    <ul>
+        <li><b>Centro de optimización:</b> Listado seleccionable de empresas para análisis.</li>
+        <li><b>Análisis:</b> Ofrece un informe personalizado de las áreas críticas y un plan de acción.</li>
+        <li><b><code>Imprimir</code> / <code>Descargar</code>:</b> Permite exportar el plan de acción en papel o formato TXT.</li>
+    </ul>
+
+    <h2>Gestión de Usuarios <span class="admin-tag">SOLO ADMIN</span></h2>
+    <p>Panel exclusivo para controlar el acceso a la aplicación y los roles del equipo.</p>
+    <ul>
+        <li><b>Lista de Usuarios:</b> Muestra todos los usuarios registrados, su rol y su estado actual (<code>ACTIVO</code> en verde o <code>BLOQUEADO</code> en rojo).</li>
+        <li><b>Crear Usuario:</b> Botón superior para dar de alta un nuevo usuario, asignando nombre, login, contraseña y rol.</li>
+        <li><b>Acciones sobre Usuarios:</b>
+            <ul>
+                <li>(Icono de Lápiz): Editar nombre, cambiar rol o restablecer contraseña.</li>
+                <li>(Icono de Candado): <b>Bloquear/Desbloquear</b>. Un usuario bloqueado no podrá iniciar sesión (recibirá una alerta), pero sus datos se conservan.</li>
+                <li>(Icono de Canasta): <b>Eliminar</b>. Borra al usuario permanentemente. <br><i>Nota de seguridad: Si el usuario tiene historial en la auditoría, el sistema impedirá el borrado para mantener la integridad de los datos. En ese caso, se recomienda bloquearlo.</i></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Auditoría / Logs <span class="admin-tag">SOLO ADMIN</span></h2>
+    <ul>
+        <li><b>Registro de Seguridad:</b> Tabla que recoge todas las acciones críticas realizadas en el sistema.</li>
+        <li><b>Campos:</b>
+            <ul>
+                <li><code>FECHA/HORA</code>: Momento exacto de la acción.</li>
+                <li><code>USUARIO</code>: Quién realizó la acción.</li>
+                <li><code>ACCIÓN</code>: Descripción detallada (ej: "Alta Sede", "Modificación Emisión").</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Exportar a CSV</h2>
+    <p>En las vistas de Empresas y Emisiones, el botón <b>"Exportar Vista (CSV)"</b> permite descargar los datos visibles (respetando los filtros de búsqueda aplicados) a un archivo compatible con Excel.</p>
+
+</div>
+</body>
+</html>
