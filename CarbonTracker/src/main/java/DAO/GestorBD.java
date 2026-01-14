@@ -1,6 +1,8 @@
 package DAO;
 
 import Modelos.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,6 +83,14 @@ public class GestorBD {
      * administrador por defecto (admin/admin).
      */
     public void arrancarBD() {
+        String filtro = "CREATE TABLE IF NOT EXISTS filtro (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "criterio_busqueda TEXT, " +
+                "ordenamiento TEXT, " + // AÑADIDO: Para guardar "Nombre Ascendente"
+                "contexto TEXT, " +
+                "fecha_hora TEXT DEFAULT (datetime('now', 'localtime')), " +
+                "id_usuario INTEGER NOT NULL, " +
+                "FOREIGN KEY (id_usuario) REFERENCES usuario(id));";
         // Tabla Empresa
         String empresa = "CREATE TABLE IF NOT EXISTS empresa (\n"
                 + " id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
@@ -132,7 +142,7 @@ public class GestorBD {
         //Conexion y lanzamientos
         try (Connection conexion = establecerConexion();
              Statement st = conexion.createStatement()) {
-
+            st.execute(filtro);
             st.execute(empresa);
             st.execute(emision);
             st.execute(rol);
@@ -247,24 +257,42 @@ public class GestorBD {
      * @param rol El rol asignado al usuario.
      * @return true si la inserción en la bd fue exitosa, false si hubo error (Por ejemplo: usuario duplicado).
      */
-    public boolean crearUsuario(String nomUsuario, String pass, String nomCompleto, Rol rol) {
+    public boolean crearUsuario(String nomUsuario, String pass, String nomCompleto, Rol rol, Usuario autor) {
         String passHasheado = truncarPass(pass);
         String insertUsuario = "INSERT INTO usuario(nombre_usuario, hash_contrasena, nombre_completo, id_rol) VALUES(?,?,?,?)";
+        String insertLog = "INSERT INTO auditoria (accion, fecha_hora, id_usuario) VALUES (?, datetime('now', 'localtime'), ?)";
 
-        try (Connection conexion = establecerConexion();
-             PreparedStatement ps = conexion.prepareStatement(insertUsuario)) {
+        Connection conn = null;
+        try {
+            conn = establecerConexion();
+            conn.setAutoCommit(false); // Inicio transacción
 
-            ps.setString(1, nomUsuario);
-            ps.setString(2, passHasheado);
-            ps.setString(3, nomCompleto);
-            ps.setLong(4, rol.getId());
-            //Recuento de afectaciones por columna al hacer el insert
-            int colAfectadas = ps.executeUpdate();
-            return colAfectadas > 0;
+            try (PreparedStatement ps = conn.prepareStatement(insertUsuario)) {
+                ps.setString(1, nomUsuario);
+                ps.setString(2, passHasheado);
+                ps.setString(3, nomCompleto);
+                ps.setLong(4, rol.getId());
+                ps.executeUpdate();
+            }
+
+            // Si hay un autor (es decir, lo crea un admin y no es autorregistro), guardamos log
+            if (autor != null) {
+                try (PreparedStatement psLog = conn.prepareStatement(insertLog)) {
+                    psLog.setString(1, "ALTA USUARIO | Nuevo: " + nomUsuario + " (" + rol.getNomRol() + ")");
+                    psLog.setLong(2, autor.getId());
+                    psLog.executeUpdate();
+                }
+            }
+
+            conn.commit();
+            return true;
 
         } catch (SQLException e) {
             System.out.println("Error al crear usuario: " + e.getMessage());
+            if (conn != null) try { conn.rollback(); } catch (SQLException ex) {}
             return false;
+        } finally {
+            if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (SQLException ex) {}
         }
     }
 
@@ -329,33 +357,48 @@ public class GestorBD {
      * @param nuevaContrasena La nueva contraseña en texto plano. Si es null o vacía, no se cambia la contraseña.
      * @return true si la actualización fue exitosa.
      */
-    public boolean actualizarUsuarioAdmin(Usuario usuario, String nuevaContrasena) {
+    public boolean actualizarUsuarioAdmin(Usuario usuario, String nuevaContrasena, Usuario autor) {
         boolean cambiarCon = nuevaContrasena != null && !nuevaContrasena.isBlank();
-
-        //Si no hay contraseña nueva, no tocamos ese campo
         String modUsuario = "UPDATE usuario SET nombre_usuario=?, nombre_completo=?, id_rol=?, activo=? "
                 + (cambiarCon ? ", hash_contrasena=? " : "")
                 + "WHERE id=?";
+        String insertLog = "INSERT INTO auditoria (accion, fecha_hora, id_usuario) VALUES (?, datetime('now', 'localtime'), ?)";
 
-        try (Connection conexion = establecerConexion();
-             PreparedStatement ps = conexion.prepareStatement(modUsuario)) {
+        Connection conexion = null;
+        try {
+            conexion = establecerConexion();
+            conexion.setAutoCommit(false);
 
-            ps.setString(1, usuario.getNombreUsuario());
-            ps.setString(2, usuario.getNombreCompleto());
-            ps.setLong(3, usuario.getRol().getId());
-            ps.setInt(4, usuario.isActivo() ? 1 : 0);
-
-            int indiceHasheo = 5;
-            if (cambiarCon) {
-                ps.setString(indiceHasheo++, truncarPass(nuevaContrasena)); // Hasheamos la nueva contraseña
+            try (PreparedStatement ps = conexion.prepareStatement(modUsuario)) {
+                ps.setString(1, usuario.getNombreUsuario());
+                ps.setString(2, usuario.getNombreCompleto());
+                ps.setLong(3, usuario.getRol().getId());
+                ps.setInt(4, usuario.isActivo() ? 1 : 0);
+                int indiceHasheo = 5;
+                if (cambiarCon) {
+                    ps.setString(indiceHasheo++, truncarPass(nuevaContrasena));
+                }
+                ps.setLong(indiceHasheo, usuario.getId());
+                ps.executeUpdate();
             }
-            ps.setLong(indiceHasheo, usuario.getId());
 
-            return ps.executeUpdate() > 0;
+            if (autor != null) {
+                try (PreparedStatement psLog = conexion.prepareStatement(insertLog)) {
+                    psLog.setString(1, "MODIFICACIÓN USUARIO | ID: " + usuario.getNombreUsuario());
+                    psLog.setLong(2, autor.getId());
+                    psLog.executeUpdate();
+                }
+            }
+
+            conexion.commit();
+            return true;
 
         } catch (SQLException e) {
-            System.out.println("Error actualizando el usuario ADMINISTRADOR: " + e.getMessage());
+            System.out.println("Error actualizando usuario: " + e.getMessage());
+            if (conexion != null) try { conexion.rollback(); } catch (SQLException ex) {}
             return false;
+        } finally {
+            if (conexion != null) try { conexion.setAutoCommit(true); conexion.close(); } catch (SQLException ex) {}
         }
     }
 
@@ -400,19 +443,49 @@ public class GestorBD {
      * @param idUsuario ID del usuario a borrar.
      * @return true si se borró, false si falló (por ejemplo, si tiene registros vinculados que impiden borrarlo).
      */
-    public boolean borrarUsuario(Long idUsuario) {
+    public boolean borrarUsuario(Long idUsuario, Usuario autor) {
+        String selectNombre = "SELECT nombre_usuario FROM usuario WHERE id = ?";
         String borradoUsuario = "DELETE FROM usuario WHERE id = ?";
+        String insertLog = "INSERT INTO auditoria (accion, fecha_hora, id_usuario) VALUES (?, datetime('now', 'localtime'), ?)";
 
-        try (Connection conexion = establecerConexion();
-             PreparedStatement ps = conexion.prepareStatement(borradoUsuario)) {
+        Connection conexion = null;
+        try {
+            conexion = establecerConexion();
+            conexion.setAutoCommit(false);
 
-            ps.setLong(1, idUsuario);
-            int filasAfectadas = ps.executeUpdate();
-            return filasAfectadas > 0;
+            // Guardamos el nombre
+            String nombreBorrado = "Desconocido";
+            try (PreparedStatement psSel = conexion.prepareStatement(selectNombre)) {
+                psSel.setLong(1, idUsuario);
+                ResultSet rs = psSel.executeQuery();
+                if (rs.next()) nombreBorrado = rs.getString("nombre_usuario");
+            }
+
+            // Borramos el registro si es necesario
+            try (PreparedStatement ps = conexion.prepareStatement(borradoUsuario)) {
+                ps.setLong(1, idUsuario);
+                int filas = ps.executeUpdate();
+                if (filas == 0) throw new SQLException("No se borró ningún registro");
+            }
+
+            // Mostramos el Log
+            if (autor != null) {
+                try (PreparedStatement psLog = conexion.prepareStatement(insertLog)) {
+                    psLog.setString(1, "BAJA USUARIO | Eliminado: " + nombreBorrado);
+                    psLog.setLong(2, autor.getId());
+                    psLog.executeUpdate();
+                }
+            }
+
+            conexion.commit();
+            return true;
 
         } catch (SQLException e) {
-            System.out.println("Error borrando usuario (posible restricción FK): " + e.getMessage());
+            System.out.println("Error borrando usuario (FK restriction): " + e.getMessage());
+            if (conexion != null) try { conexion.rollback(); } catch (SQLException ex) {}
             return false;
+        } finally {
+            if (conexion != null) try { conexion.setAutoCommit(true); conexion.close(); } catch (SQLException ex) {}
         }
     }
 
@@ -427,24 +500,39 @@ public class GestorBD {
      * @return El objeto Empresa que se ha creado, con el ID generado asignado, o devolviendo null si falla.
      */
     public Empresa agregarEmpresa(Empresa empresa) {
+        String yaExiste = "SELECT id FROM empresa WHERE LOWER(nombre) = LOWER(?)";
         String insertEmpresa = "INSERT INTO empresa(nombre, sector) VALUES(?,?)";
 
-        try (Connection conexion = establecerConexion();
-             PreparedStatement ps = conexion.prepareStatement(insertEmpresa)) {
+        try (Connection conexion = establecerConexion()) {
 
-            ps.setString(1, empresa.getNombreEmpresa());
-            ps.setString(2, empresa.getSector());
-            ps.executeUpdate();
+            // Comprobamos si existe la empresa que se intenta añadir
+            try (PreparedStatement psCheck = conexion.prepareStatement(yaExiste)) {
+                psCheck.setString(1, empresa.getNombreEmpresa());
+                ResultSet rs = psCheck.executeQuery();
+                if (rs.next()) {
+                    System.out.println("Error: Empresa ya existente.");
+                    return null;
+                }
+            }
 
-            try (Statement stmt = conexion.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT last_insert_rowid()")) {
+            // Si no hay duplicados, insertamos el registro
+            try (PreparedStatement ps = conexion.prepareStatement(insertEmpresa)) {
+                ps.setString(1, empresa.getNombreEmpresa());
+                ps.setString(2, empresa.getSector());
+                ps.executeUpdate();
+            }
+
+
+            try (Statement st = conexion.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT last_insert_rowid()")) {
                 if (rs.next()) {
                     empresa.setId(rs.getLong(1));
                 }
             }
             return empresa;
+
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Error al agregar empresa: " + e.getMessage());
             return null;
         }
     }
@@ -655,7 +743,9 @@ public class GestorBD {
 
             if (usuarioActual != null) {
                 try (PreparedStatement ps = conexion.prepareStatement(insertAuditoria)) {
-                    String msgLog = "MODIFICACIÓN EMISIÓN | ID: " + emision.getId() + " | Nuevo CO2e: " + emision.getCo2e();
+                    //Interceptamos el número, por si fuera necesario formatearlo y evitar la vista exponencial
+                    String co2Fmt = String.format("%.2f", emision.getCo2e());
+                    String msgLog = "MODIFICACIÓN EMISIÓN | ID: " + emision.getId() + " | Nuevo CO2e: " + co2Fmt;
                     ps.setString(1, msgLog);
                     ps.setLong(2, usuarioActual.getId());
                     ps.executeUpdate();
@@ -923,6 +1013,53 @@ public class GestorBD {
         }
     }
 
+
+    /**
+     * Elimina una una sede existente y registra la operación en la tabla de auditoría.
+     *
+     * Este método utiliza una <b>transacción</b> de base de datos. Se realizan dos operaciones:
+     * <ol>
+     * <li>UPDATE: Elimina el registro existente de una sede.</li>
+     * </ol>
+     * Si alguna de las dos operaciones falla, se realiza un <i>rollback</i> y no se guardan los cambios.
+     *
+     * @param idSede        El ID de registro con el que se asocia la sede
+     * @param ciudadSede    El nombre de la ciudad a la que está asociada la sede
+     * @param usuario       El objeto {@link Usuario} que está realizando la modificación (necesario para el log de auditoría).
+     * @param nombreEmpresa El nombre de la empresa a la que pertenece la sede (utilizado para construir el mensaje del log).
+     * @return {@code true} si la actualización y el registro de auditoría fueron exitosos; {@code false} si ocurrió algún error SQL.
+     */
+    public boolean borrarSede(Long idSede, String ciudadSede, Usuario usuario, String nombreEmpresa) {
+        String borrarSede = "DELETE FROM sede WHERE id = ?";
+        String insertLog = "INSERT INTO auditoria (accion, fecha_hora, id_usuario) VALUES (?, datetime('now', 'localtime'), ?)";
+
+        Connection conexion = null;
+        try {
+            conexion = establecerConexion();
+            conexion.setAutoCommit(false);
+
+            try (PreparedStatement ps = conexion.prepareStatement(borrarSede)) {
+                ps.setLong(1, idSede);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conexion.prepareStatement(insertLog)) {
+                String msgLog = "BAJA SEDE | Empresa: " + nombreEmpresa + " | Ciudad: " + ciudadSede;
+                ps.setString(1, msgLog);
+                ps.setLong(2, usuario.getId());
+                ps.executeUpdate();
+            }
+
+            conexion.commit();
+            return true;
+        } catch (SQLException e) {
+            if (conexion != null) try { conexion.rollback(); } catch (SQLException ex) {}
+            System.out.println("Error borrando sede: " + e.getMessage());
+            return false;
+        } finally {
+            if (conexion != null) try { conexion.setAutoCommit(true); conexion.close(); } catch (SQLException ex) {}
+        }
+    }
     /**
      * Obtiene una lista de todas las sedes asociadas a una empresa específica.
      * <p>
@@ -1004,61 +1141,88 @@ public class GestorBD {
      */
     public void cargarDatosDemo() {
         System.out.println("--- Iniciando Carga de Datos Demo ---");
-
-        // SE CARGAN LOS ROLES
         List<Rol> roles = getRoles();
         Rol rolAdmin = roles.stream().filter(r -> r.getNomRol().equalsIgnoreCase("ADMINISTRADOR")).findFirst().orElse(null);
         Rol rolUsuario = roles.stream().filter(r -> r.getNomRol().equalsIgnoreCase("USUARIO")).findFirst().orElse(null);
         Rol rolCliente = roles.stream().filter(r -> r.getNomRol().equalsIgnoreCase("CLIENTE")).findFirst().orElse(null);
 
-        // SE CREAN LOS USUARIOS
-        if(rolAdmin != null) crearUsuario("admin", "admin", "Profesor Admin", rolAdmin);
-        if(rolUsuario != null) crearUsuario("empleado", "1234", "Empleado Test", rolUsuario);
-        if(rolCliente != null) crearUsuario("cliente", "1234", "Cliente Visita", rolCliente);
+        // MODIFICADO: Añadido 'null' como 5º parámetro (autor) porque no hay usuario logueado
+        if(rolAdmin != null) crearUsuario("admin", "admin", "Profesor Admin", rolAdmin, null);
+        if(rolUsuario != null) crearUsuario("empleado", "1234", "Empleado Test", rolUsuario, null);
+        if(rolCliente != null) crearUsuario("cliente", "1234", "Cliente Visita", rolCliente, null);
 
-        // SE CREAN LAS EMPRESAS
-        String[][] datosEmpresas = {
-                {"TechSolar Solutions", "Energía"},
-                {"Logística Rápida S.L.", "Transporte"},
-                {"AgroCultivos Bio", "Agricultura"},
-                {"Construcciones Norte", "Construcción"}
-        };
-
+        String[][] datosEmpresas = {{"TechSolar Solutions", "Energía"}, {"Logística Rápida S.L.", "Transporte"}, {"AgroCultivos Bio", "Agricultura"}, {"Construcciones Norte", "Construcción"}};
         for (String[] datos : datosEmpresas) {
             String nombre = datos[0];
-            String sector = datos[1];
-
-            //  Se evitan duplicidades
             if (getTodasEmpresas(nombre).isEmpty()) {
-                // SE INSERTAN LAS EMPRESAS
-                Empresa nuevaEmp = new Empresa(nombre, sector);
+                Empresa nuevaEmp = new Empresa(nombre, datos[1]);
                 agregarEmpresa(nuevaEmp);
-
                 List<Empresa> recuperada = getTodasEmpresas(nombre);
                 if (!recuperada.isEmpty()) {
                     Empresa empConId = recuperada.get(0);
                     Long id = empConId.getId();
-
-                    // SE INSERTAN EMISIONES
                     nuevaEmision(new Emisiones("Consumo Eléctrico", 500.0, 120.5, id));
                     nuevaEmision(new Emisiones("Flota Vehículos", 1000.0, 2500.0, id));
                     nuevaEmision(new Emisiones("Generadores Diesel", 200.0, 800.0, id));
                     nuevaEmision(new Emisiones("Residuos Industriales", 50.0, 100.0, id));
-
-                    // SE INSERTAN LAS SEDES
-                    registrarSedeConAuditoria(
-                            new Sede("Madrid", "C/ Principal 1", id),
-                            new Usuario(1L, "admin", "admin", rolAdmin), // Simulamos que lo hizo el admin
-                            nombre
-                    );
-                    registrarSedeConAuditoria(
-                            new Sede("Barcelona", "Av. Diagonal 200", id),
-                            new Usuario(1L, "admin", "admin", rolAdmin),
-                            nombre
-                    );
+                    registrarSedeConAuditoria(new Sede("Madrid", "C/ Principal 1", id), new Usuario(1L, "admin", "admin", rolAdmin), nombre);
+                    registrarSedeConAuditoria(new Sede("Barcelona", "Av. Diagonal 200", id), new Usuario(1L, "admin", "admin", rolAdmin), nombre);
                 }
             }
         }
         System.out.println("--- Datos Demo Cargados ---");
     }
-}
+
+
+    // ----------------------------------------
+    // Método auxiliar de filtro para crear el registro en la BD
+    // ----------------------------------------
+
+    public void registrarFiltro(String criterio, String orden, String contexto, Usuario usuario) {
+        String sql = "INSERT INTO filtro (criterio_busqueda, ordenamiento, contexto, id_usuario) VALUES (?, ?, ?, ?)";
+        try (Connection conn = establecerConexion();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, (criterio == null || criterio.isBlank()) ? "Todo" : criterio);
+            ps.setString(2, orden);
+            ps.setString(3, contexto);
+            ps.setLong(4, usuario.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println("Error log filtro: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Recupera el historial de filtros usados en los informes.
+     * Reutilizamos la clase AuditoriaLog para mostrar los datos en la tabla (hack rápido y limpio).
+     */
+
+    public ObservableList<Modelos.AuditoriaLog> getHistorialFiltros() {
+        ObservableList<Modelos.AuditoriaLog> lista = FXCollections.observableArrayList();
+
+        String sql = "SELECT f.fecha_hora, u.nombre_usuario, f.contexto, f.criterio_busqueda, f.ordenamiento " +
+                "FROM filtro f " +
+                "JOIN usuario u ON f.id_usuario = u.id " +
+                "ORDER BY f.id DESC";
+
+        try (Connection conn = establecerConexion();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+
+            while (rs.next()) {
+                String fecha = rs.getString("fecha_hora");
+                String usuario = rs.getString("nombre_usuario");
+
+                String contexto = rs.getString("contexto");
+                String criterio = rs.getString("criterio_busqueda");
+                String orden = rs.getString("ordenamiento");
+
+                // Montamos el "query" de los parámetros de filtrado
+                String detalle = String.format("[%s] Buscó: '%s' | Orden: %s", contexto, criterio, orden);
+                lista.add(new Modelos.AuditoriaLog(0L, detalle, fecha, usuario));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error leyendo filtros: " + e.getMessage());
+        }
+        return lista;
+    }}

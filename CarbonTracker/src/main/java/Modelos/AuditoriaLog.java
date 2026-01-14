@@ -33,6 +33,7 @@ public class AuditoriaLog {
      */
     private String nombreUsuario;
 
+
     /**
      * Crea un nuevo objeto de registro de auditoría.
      *

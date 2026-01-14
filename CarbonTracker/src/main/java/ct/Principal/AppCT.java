@@ -25,10 +25,16 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.materialdesign.MaterialDesign;
 import java.io.File;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
+import java.text.NumberFormat;
+import java.util.Locale;
+import java.time.format.DateTimeFormatter;
+import javafx.collections.transformation.FilteredList;
+import javafx.util.StringConverter;
+import javafx.collections.ListChangeListener;
 
 /**
  * Clase principal de la aplicación JavaFX "Carbon Tracker".
@@ -137,7 +143,7 @@ public class AppCT extends Application {
 
         // --- CARGA DEL ICONO ---
         try {
-            // Asegúrate de que tu archivo se llama "logo.png" y está en la ruta correcta.
+            // Control de carga de icono, feedback
             String rutaIcono = "/ct/Principal/logo.png";
             java.io.InputStream imgStream = getClass().getResourceAsStream(rutaIcono);
             if (imgStream != null) {
@@ -211,7 +217,7 @@ public class AppCT extends Application {
     }
 
     // ==========================================
-    // 3. ESTRUCTURA BASE (BARRA, SIDEBAR, CABECERA)
+    // ESTRUCTURA BASE (BARRA, SIDEBAR, CABECERA)
     // ==========================================
 
     /**
@@ -432,7 +438,7 @@ public class AppCT extends Application {
     }
 
     // ==========================================
-    // 4. VISTAS PRINCIPALES (PANELES)
+    // VISTAS PRINCIPALES (PANELES)
     // ==========================================
 
     /**
@@ -444,19 +450,21 @@ public class AppCT extends Application {
         VBox tarjetaListaEmpresa = new VBox();
         tarjetaListaEmpresa.getStyleClass().addAll("tarjeta", "tarjeta-azul");
 
-        // Cabecera de tarjeta
+        // Cabecera
         HBox tarjetaTitulo = new HBox(10);
         tarjetaTitulo.setAlignment(Pos.CENTER);
         tarjetaTitulo.setPadding(new Insets(25, 0, 15, 0));
         FontIcon iconoCat = new FontIcon(MaterialDesign.MDI_DOMAIN);
         iconoCat.setIconSize(24);
         Text tituloCategoria = new Text("Lista de Empresas");
-
         tituloCategoria.getStyleClass().add("tarjeta-title");
-
         tarjetaTitulo.getChildren().addAll(iconoCat, tituloCategoria);
         tablaEmpresa.getStyleClass().add("table-companies");
 
+        // Barra de estado de filtros actuales -
+        Label etiquetaFiltro = new Label("Viendo: Todo | Orden: Por defecto");
+        etiquetaFiltro.setStyle("-fx-text-fill: #6B7280; -fx-font-size: 12px; -fx-font-style: italic; -fx-padding: 0 0 5 5;");
+        // -------------------------------------------
 
         // Barra de herramientas
         HBox cajaBusquedaEmpresa = new HBox(10);
@@ -464,19 +472,56 @@ public class AppCT extends Application {
         HBox.setHgrow(busquedaEmpresa, Priority.ALWAYS);
 
         Button btnExportarEmpresa = new Button("Exportar Todo (CSV)", new FontIcon(MaterialDesign.MDI_DOWNLOAD));
-        btnExportarEmpresa.setOnAction(e -> exportarEmpresas(vista));
+        // Al exportar, guardamos también en BD qué filtro se usó
+        btnExportarEmpresa.setOnAction(e -> {
+            // Guardamos en BD el estado actual antes de exportar
+            String ordenActual = getTextoFiltro(tablaEmpresa);
+            gestorBD.registrarFiltro(busquedaEmpresa.getText(), ordenActual, "EMPRESAS", usuarioSesionActual);
+
+            exportarEmpresas(vista);
+        });
 
         cajaBusquedaEmpresa.getChildren().addAll(busquedaEmpresa, btnExportarEmpresa);
-        cajaBusquedaEmpresa.setPadding(new Insets(10, 0, 0, 0));
+        cajaBusquedaEmpresa.setPadding(new Insets(10, 0, 10, 0));
 
         // Tabla
         columnasTablaEmpresa(vista);
         tablaEmpresa.setItems(infoEmpresa);
         VBox.setVgrow(tablaEmpresa, Priority.ALWAYS);
 
-        tarjetaListaEmpresa.getChildren().addAll(tarjetaTitulo, cajaBusquedaEmpresa, tablaEmpresa);
+        // Lógica de actualización
+        // Adición caja de búsqueda al filtro
+        busquedaEmpresa.textProperty().addListener((obs, oldV, newV) -> {
+            cargarListaEmpresa(); // Tu método existente de filtrado
+            actualizarEtiquetaFiltro(etiquetaFiltro, newV, tablaEmpresa);
+        });
+
+        // Orden por tabla
+        tablaEmpresa.getSortOrder().addListener((ListChangeListener<TableColumn<Empresa, ?>>) c -> {
+            actualizarEtiquetaFiltro(etiquetaFiltro, busquedaEmpresa.getText(), tablaEmpresa); });
+        //Para forzar la actualización de la leyenda de filtros
+        for (TableColumn<Empresa, ?> col : tablaEmpresa.getColumns()) {
+            col.sortTypeProperty().addListener((o, oldV, newV) ->
+                    actualizarEtiquetaFiltro(etiquetaFiltro, busquedaEmpresa.getText(), tablaEmpresa));
+        }
+
+        // --------------------------------------
+
+        tarjetaListaEmpresa.getChildren().addAll(tarjetaTitulo, cajaBusquedaEmpresa, etiquetaFiltro, tablaEmpresa);
         VBox.setMargin(tarjetaListaEmpresa, new Insets(0, 30, 30, 30));
         return tarjetaListaEmpresa;
+    }
+
+    /**
+     * Método auxiliar para actualizar el texto que muestra los filtros aplicados
+     */
+    private void actualizarEtiquetaFiltro(Label label, String textoBusqueda, TableView<?> tabla) {
+        String estadoBusqueda = (textoBusqueda == null || textoBusqueda.isBlank()) ? "Todo" : "\"" + textoBusqueda + "\"";
+
+        // Usamos el nuevo método que detecta múltiples columnas y dirección correcta
+        String estadoOrden = getTextoFiltro(tabla);
+        // Mensaje de filtrado actual
+        label.setText("🔍 Filtro: " + estadoBusqueda + "  |  ⇅ Orden: " + estadoOrden);
     }
 
     /**
@@ -486,9 +531,11 @@ public class AppCT extends Application {
      * @param vista Escenario principal.
      * @return Contenedor VBox de la vista.
      */
+
     private VBox desplegarVistaListaEmisiones(Stage vista) {
         VBox vistaListaEmisiones = new VBox();
         vistaListaEmisiones.getStyleClass().addAll("tarjeta", "tarjeta-verde");
+
         // Cabecera de la tarjeta
         HBox cabecera = new HBox(10);
         cabecera.setAlignment(Pos.CENTER);
@@ -499,22 +546,56 @@ public class AppCT extends Application {
         tarjetaEmision.getStyleClass().add("tarjeta-title");
         cabecera.getChildren().addAll(iconoLista, tarjetaEmision);
         tablaEmision.getStyleClass().add("table-emissions");
+
+        // Barra de filtro
+        Label registroFiltro = new Label("Viendo: Todo | Orden: Por defecto");
+        registroFiltro.setStyle("-fx-text-fill: #6B7280; -fx-font-size: 12px; -fx-font-style: italic; -fx-padding: 0 0 5 5;");
+
         // Barra de herramientas (Búsqueda + Exportar)
         HBox cajaBusqueda = new HBox(10);
         cajaBusqueda.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(busquedaEmision, Priority.ALWAYS);
+
         Button btnExportarEmision = new Button("Exportar Vista (CSV)", new FontIcon(MaterialDesign.MDI_DOWNLOAD));
-        btnExportarEmision.setOnAction(e -> exportarEmisiones(vista));
+
+        // Acción Exportar con Registro de Filtro
+        btnExportarEmision.setOnAction(e -> {
+            // Guardamos en BD el estado actual
+            String ordenActual = getTextoFiltro(tablaEmpresa);
+            // Contexto dinámico (Global o por Empresa)
+            String contextoLog = (empresaObjetivo != null) ? "EMISIONES (" + empresaObjetivo.getNombreEmpresa() + ")" : "EMISIONES (GLOBAL)";
+
+            gestorBD.registrarFiltro(busquedaEmision.getText(), ordenActual, contextoLog, usuarioSesionActual);
+
+            exportarEmisiones(vista);
+        });
 
         cajaBusqueda.getChildren().addAll(busquedaEmision, btnExportarEmision);
-        cajaBusqueda.setPadding(new Insets(10, 0, 0, 0));
+        cajaBusqueda.setPadding(new Insets(10, 0, 10, 0));
 
         // Configuración de la tabla
         columnasTabEmision(vista);
         tablaEmision.setItems(infoEmision);
         VBox.setVgrow(tablaEmision, Priority.ALWAYS);
 
-        vistaListaEmisiones.getChildren().addAll(cabecera, cajaBusqueda, tablaEmision);
+        // Actualización de estados de filtro
+        // Adicion de estado para la búsqueda
+        busquedaEmision.textProperty().addListener((obs, oldV, newV) -> {
+            cargarListaEmision();
+            actualizarEtiquetaFiltro(registroFiltro, newV, tablaEmision);
+        });
+
+        // Adición de estado de filtro por columna
+        tablaEmision.getSortOrder().addListener((ListChangeListener<TableColumn<Emisiones, ?>>) c -> {
+            actualizarEtiquetaFiltro(registroFiltro, busquedaEmision.getText(), tablaEmision);
+        });
+        // Forzamos la actualización de ASC o DESC de la leyenda del filtro
+        for (TableColumn<Empresa, ?> col : tablaEmpresa.getColumns()) {
+            col.sortTypeProperty().addListener((o, oldV, newV) ->
+                    actualizarEtiquetaFiltro(registroFiltro, busquedaEmpresa.getText(), tablaEmpresa));
+        }
+
+        vistaListaEmisiones.getChildren().addAll(cabecera, cajaBusqueda, registroFiltro, tablaEmision);
         VBox.setMargin(vistaListaEmisiones, new Insets(0, 30, 30, 30));
         return vistaListaEmisiones;
     }
@@ -633,8 +714,7 @@ public class AppCT extends Application {
                     if (respuesta.isPresent() && respuesta.get() == ButtonType.OK) {
 
                         // Registro de borrado
-                        boolean borradoExitoso = gestorBD.borrarUsuario(usuario.getId());
-
+                        boolean borradoExitoso = gestorBD.borrarUsuario(usuario.getId(), usuarioSesionActual);
                         if (borradoExitoso) {
                             popUpOk("Usuario Eliminado", "El usuario ha sido borrado del sistema.");
                             cargarListaUsuarios();
@@ -702,6 +782,9 @@ public class AppCT extends Application {
      * Genera la vista de tabla de Auditoría.
      * @return Panel VBox con la tabla de logs.
      */
+    /**
+     * Genera la vista de tabla de Auditoría y Logs de Filtros.
+     */
     private VBox crearVistaAuditoria() {
         VBox tarjetaAudt = new VBox();
         tarjetaAudt.getStyleClass().add("tarjeta");
@@ -714,29 +797,73 @@ public class AppCT extends Application {
         Text titulo = new Text("Registro de Auditoría y Seguridad");
         titulo.getStyleClass().add("tarjeta-title");
         cabecera.getChildren().addAll(icono, titulo);
-        //Despliegue de tablas de auditoria
+
         tablaAuditoria = new TableView<>();
         tablaAuditoria.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+
+        // Formatear la fecha al uso español
         TableColumn<Modelos.AuditoriaLog, String> colFecha = new TableColumn<>("FECHA / HORA");
         colFecha.setCellValueFactory(new PropertyValueFactory<>("fechaHora"));
-        //Columnas de auditoria
+        colFecha.setCellFactory(column -> new TableCell<>() {
+            private final DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            private final DateTimeFormatter outputFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) { setText(null); }
+                else {
+                    try { setText(LocalDateTime.parse(item, inputFormat).format(outputFormat)); }
+                    catch (Exception e) { setText(item); }
+                }
+            }
+        });
+
         TableColumn<Modelos.AuditoriaLog, String> colUsuario = new TableColumn<>("USUARIO");
         colUsuario.setCellValueFactory(new PropertyValueFactory<>("nombreUsuario"));
 
-        TableColumn<Modelos.AuditoriaLog, String> colAccion = new TableColumn<>("ACCIÓN REGISTRADA");
+        TableColumn<Modelos.AuditoriaLog, String> colAccion = new TableColumn<>("DETALLE / ACCIÓN");
         colAccion.setCellValueFactory(new PropertyValueFactory<>("accion"));
 
         tablaAuditoria.getColumns().addAll(colFecha, colUsuario, colAccion);
-        tablaAuditoria.setItems(infoAuditoria);
         VBox.setVgrow(tablaAuditoria, Priority.ALWAYS);
 
-        Button btnRefrescar = new Button("Actualizar Registros", new FontIcon(MaterialDesign.MDI_REFRESH));
-        btnRefrescar.setOnAction(e -> cargarAuditoria());
+        // Cabecera de botónes para modo
+        HBox panelBotones = new HBox(10);
+        panelBotones.setAlignment(Pos.CENTER);
+        panelBotones.setPadding(new Insets(0, 0, 10, 0));
 
-        tarjetaAudt.getChildren().addAll(cabecera, btnRefrescar, tablaAuditoria);
+        // Botón 1: Logs de Seguridad
+        Button btnLogsSeguridad = new Button("Logs de Seguridad", new FontIcon(MaterialDesign.MDI_LOCK));
+        btnLogsSeguridad.setStyle("-fx-base: #2c3955;"); // Estilo activo por defecto
+
+        // Botón 2: Historial de Filtros
+        Button btnHistorialFiltros = new Button("Historial de Informes", new FontIcon(MaterialDesign.MDI_FILE_DOCUMENT));
+
+        // ACCIONES
+        btnLogsSeguridad.setOnAction(e -> {
+            titulo.setText("Registro de Auditoría y Seguridad");
+            icono.setIconLiteral("mdi-shield");
+            tablaAuditoria.setItems(infoAuditoria); // Cargamos la lista normal
+            cargarAuditoria(); // Refrescamos de BD
+        });
+
+        btnHistorialFiltros.setOnAction(e -> {
+            titulo.setText("Historial de Búsquedas y Exportaciones");
+            icono.setIconLiteral("mdi-filter");
+            // Cargamos la lista de filtros desde BD
+            tablaAuditoria.setItems(gestorBD.getHistorialFiltros());
+        });
+
+        panelBotones.getChildren().addAll(btnLogsSeguridad, btnHistorialFiltros);
+
+        tarjetaAudt.getChildren().addAll(cabecera, panelBotones, tablaAuditoria);
         VBox.setMargin(tarjetaAudt, new Insets(0, 30, 30, 30));
 
+        // Cargar por defecto seguridad
         cargarAuditoria();
+        tablaAuditoria.setItems(infoAuditoria);
+
         return tarjetaAudt;
     }
 
@@ -820,6 +947,18 @@ public class AppCT extends Application {
         TableColumn<Empresa, Double> colCoe2 = new TableColumn<>("TOTAL CO2e (KG)");
         colCoe2.setCellValueFactory(new PropertyValueFactory<>("auxiliarAlmacenC02"));
         colCoe2.setPrefWidth(150);
+        colCoe2.setCellFactory(tc -> new TableCell<>() {
+            @Override
+            protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    // Formateamos el número para controlar los caractéres
+                    setText(NumberFormat.getInstance(Locale.GERMANY).format(item));
+                }
+            }
+        });
 
         TableColumn<Empresa, Void> colAcciones = new TableColumn<>("ACCIONES");
         colAcciones.setPrefWidth(320);
@@ -831,7 +970,6 @@ public class AppCT extends Application {
             private final Button btnVerEmpresa = new Button("", new FontIcon(MaterialDesign.MDI_EYE));
             private final Button btnDashboard = new Button("", new FontIcon(MaterialDesign.MDI_CHART_BAR));
             private final Button btnSede = new Button("", new FontIcon(MaterialDesign.MDI_MAP_MARKER_PLUS));
-
             private final HBox panelBtns = new HBox(5, btnVerEmpresa, btnDashboard, btnSede, btnEditar, btnEliminar);
 
             {
@@ -903,6 +1041,11 @@ public class AppCT extends Application {
     private void columnasTabEmision(Stage vista) {
         tablaEmision = new TableView<>();
         tablaEmision.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        // Formateadores de fecha y cifras globales
+        DateTimeFormatter formatoFecha = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        NumberFormat formatoNumero = NumberFormat.getInstance(Locale.GERMANY);
+        formatoNumero.setMaximumFractionDigits(2); // Máximo 2 decimales
+
 
         // --- COLUMNAS DE DATOS ---
         TableColumn<Emisiones, String> columnaEmpresa = new TableColumn<>("EMPRESA");
@@ -911,58 +1054,79 @@ public class AppCT extends Application {
         TableColumn<Emisiones, String> columnaTipo = new TableColumn<>("TIPO");
         columnaTipo.setCellValueFactory(new PropertyValueFactory<>("tipoEmision"));
 
+        // Formato de cantidades
         TableColumn<Emisiones, Double> columnaCantidad = new TableColumn<>("CANTIDAD");
         columnaCantidad.setCellValueFactory(new PropertyValueFactory<>("cantidadEmision"));
+        columnaCantidad.setCellFactory(tc -> new TableCell<>() {
+            @Override
+            protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(formatoNumero.format(item));
+                }
+            }
+        });
 
+        // CO2e (Formateada)
         TableColumn<Emisiones, Double> colCO2e = new TableColumn<>("CO2E (KG)");
         colCO2e.setCellValueFactory(new PropertyValueFactory<>("co2e"));
+        colCO2e.setCellFactory(tc -> new TableCell<>() {
+            @Override
+            protected void updateItem(Double item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(formatoNumero.format(item));
+                }
+            }
+        });
 
+        // Formateado de fecha
         TableColumn<Emisiones, LocalDate> colFecha = new TableColumn<>("FECHA");
         colFecha.setCellValueFactory(new PropertyValueFactory<>("fecha"));
+        colFecha.setCellFactory(tc -> new TableCell<>() {
+            @Override
+            protected void updateItem(LocalDate item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.format(formatoFecha));
+                }
+            }
+        });
 
-        // --- COLUMNA DE ACCIONES (EDITAR + BORRAR) ---
+        // --- COLUMNA DE ACCIONES (EDITAR + BORRAR)
         TableColumn<Emisiones, Void> colAccion = new TableColumn<>("ACCIONES");
         colAccion.getStyleClass().add("columna-acc");
         colAccion.setCellFactory(param -> new TableCell<>() {
-
-            // 1. Botón Editar (Estilo reutilizado de Empresa)
             private final Button btnEditar = new Button("", new FontIcon(MaterialDesign.MDI_PENCIL));
-            // 2. Botón Borrar
             private final Button btnEliminar = new Button("", new FontIcon(MaterialDesign.MDI_BASKET));
-
-            // 3. Contenedor para ponerlos juntos
             private final HBox panelBtns = new HBox(5, btnEditar, btnEliminar);
 
             {
-                // Estilos CSS (Idénticos a la tabla Empresa)
                 btnEditar.getStyleClass().addAll("action-button", "btn-edit");
                 btnEditar.setTooltip(new Tooltip("Editar Emisión"));
-
                 btnEliminar.getStyleClass().addAll("action-button", "btn-delete");
                 btnEliminar.setTooltip(new Tooltip("Eliminar Registro"));
-
                 panelBtns.setAlignment(Pos.CENTER);
 
-                // --- LÓGICA DE LOS BOTONES ---
-
-                // Acción Editar
                 btnEditar.setOnAction(event -> {
                     Emisiones emision = getTableView().getItems().get(getIndex());
                     ventanaRegistroEmision(vista, emision);
                 });
 
-                // Acción Eliminar
                 btnEliminar.setOnAction(event -> {
                     Emisiones registroEmision = getTableView().getItems().get(getIndex());
                     borradoEmision(registroEmision);
                 });
 
-                // --- PERMISOS (Ocultar si es Cliente) ---
                 if (usuarioSesionActual.getRol().getNomRol().equals("CLIENTE")) {
-                    btnEditar.setVisible(false);
-                    btnEditar.setManaged(false);
-                    btnEliminar.setVisible(false);
-                    btnEliminar.setManaged(false);
+                    btnEditar.setVisible(false); btnEditar.setManaged(false);
+                    btnEliminar.setVisible(false); btnEliminar.setManaged(false);
                 }
             }
 
@@ -975,9 +1139,8 @@ public class AppCT extends Application {
 
         tablaEmision.getColumns().addAll(columnaEmpresa, columnaTipo, columnaCantidad, colCO2e, colFecha, colAccion);
     }
-
     // ==========================================
-    // 6. DIÁLOGOS Y FORMULARIOS
+    //  DIÁLOGOS Y FORMULARIOS
     // ==========================================
 
     /**
@@ -1028,11 +1191,25 @@ public class AppCT extends Application {
         Optional<Empresa> contenido = dialogos.showAndWait();
         contenido.ifPresent(comp -> {
             if (comp.getId() == null) {
-                gestorBD.agregarEmpresa(comp);
+
+                // Controlamos duplicados. Intentamos agregar. Si devuelve NULL es que ya existe.
+                Empresa resultado = gestorBD.agregarEmpresa(comp);
+
+                if (resultado == null) {
+                    // Lanzamos mensaje de error si ya existe la empresa
+                    popUpError("Error de Creación",
+                            "Empresa Duplicada",
+                            "Ya existe una empresa registrada con el nombre: '" + comp.getNombreEmpresa() + "'.\nPor favor, verifica el nombre.");
+                } else {
+                    // Damos feedback al usuario de que se ha agregado la empresa con éxito
+                    cargarListaEmpresa();
+                    popUpOk("Éxito", "Empresa '" + comp.getNombreEmpresa() + "' registrada correctamente.");
+                }
             } else {
+                // Editar empresa
                 gestorBD.logActualizarEmpresa(comp, usuarioSesionActual);
+                cargarListaEmpresa();
             }
-            cargarListaEmpresa();
         });
     }
 
@@ -1046,14 +1223,67 @@ public class AppCT extends Application {
         ventanaRegistro.setTitle(registroEmision == null ? "Añadir Emisión" : "Editar Emisión");
         ventanaRegistro.initOwner(vista);
         try { ventanaRegistro.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm()); } catch(Exception e){}
-        //Rejilla de distribución para el formulario de registro de emisión
+
         GridPane rejilla = new GridPane();
         rejilla.setHgap(10); rejilla.setVgap(10);
         rejilla.setPadding(new Insets(20, 150, 10, 10));
-        //Combo selector de empresa para la emisión (para asegurarnos de que siempre se asigne a una entidad existente)
+
+        // Obtenemos la lista original de emisión
+        ObservableList<Empresa> datosOriginales = FXCollections.observableArrayList(gestorBD.getTodasEmpresas());
+
+        // Creamos una lista filtrable en la que se puede buscar
+        FilteredList<Empresa> listaFiltrada = new FilteredList<>(datosOriginales, p -> true);
+        //Creamos el buscador integrado
         ComboBox<Empresa> selectorEmpresa = new ComboBox<>();
-        selectorEmpresa.setItems(FXCollections.observableArrayList(gestorBD.getTodasEmpresas()));
-        //Campos de registro de la emsión
+        selectorEmpresa.setEditable(true);
+        selectorEmpresa.setItems(listaFiltrada);
+        selectorEmpresa.setPromptText("Escribe para buscar...");
+        // Recuperamos la empresa objetivo
+        selectorEmpresa.setConverter(new StringConverter<Empresa>() {
+            @Override
+            public String toString(Empresa empresa) {
+                return (empresa == null) ? "" : empresa.getNombreEmpresa();
+            }
+            @Override
+            public Empresa fromString(String string) {
+                return selectorEmpresa.getItems().stream()
+                        .filter(e -> e.getNombreEmpresa().equals(string))
+                        .findFirst().orElse(null);
+            }
+        });
+
+        // Lógica para aplicar al filtrado de empresas
+        selectorEmpresa.getEditor().textProperty().addListener((obs, oldValue, newValue) -> {
+            Platform.runLater(() -> {
+                if (selectorEmpresa.getSelectionModel().getSelectedItem() != null &&
+                        selectorEmpresa.getSelectionModel().getSelectedItem().getNombreEmpresa().equals(newValue)) {
+                    return;
+                }
+
+                listaFiltrada.setPredicate(empresa -> {
+                    // Si está vacío, mostramos todo
+                    if (newValue == null || newValue.isEmpty()) {
+                        return true;
+                    }
+                    String filtroMinuscula = newValue.toLowerCase();
+                    // Permitimos buscar por NOMBRE o por SECTOR de la empresa
+                    if (empresa.getNombreEmpresa().toLowerCase().contains(filtroMinuscula)) {
+                        return true;
+                    } else if (empresa.getSector().toLowerCase().contains(filtroMinuscula)) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                // Forzamos que se despliegue el menú si hay resultados y no está visible
+                if (!listaFiltrada.isEmpty() && !selectorEmpresa.isShowing()) {
+                    selectorEmpresa.show();
+                }
+            });
+        });
+
+
+        //Campos de registro de la emisión
         TextField campoTipo = new TextField();
         campoTipo.setPromptText("Ej: Electricidad, Transporte");
         TextField campoCantidad = new TextField();
@@ -1064,10 +1294,16 @@ public class AppCT extends Application {
         // Rellenamos el formulario con los datos de la emisión que vamos a editar
         if (registroEmision != null) {
             campoTipo.setText(registroEmision.getTipoEmision());
-            campoCantidad.setText(String.valueOf(registroEmision.getCantidadEmision()));
-            campoCo.setText(String.valueOf(registroEmision.getCo2e()));
+            // Formateo de números para evitar vista exponencial
+            NumberFormat formatoInput = NumberFormat.getInstance(Locale.GERMANY);
+            formatoInput.setGroupingUsed(false);
+            formatoInput.setMaximumFractionDigits(2);
+
+            campoCantidad.setText(formatoInput.format(registroEmision.getCantidadEmision()));
+            campoCo.setText(formatoInput.format(registroEmision.getCo2e()));
+
             // Lo asociamos a su empresa
-            for (Empresa emp : selectorEmpresa.getItems()) {
+            for (Empresa emp : datosOriginales) {
                 if (emp.getId().equals(registroEmision.getIdEmpresa())) {
                     selectorEmpresa.setValue(emp);
                     break;
@@ -1075,21 +1311,24 @@ public class AppCT extends Application {
             }
             if (!usuarioSesionActual.getRol().getNomRol().equals("ADMINISTRADOR")) {
                 selectorEmpresa.setDisable(true);
-            }        } else if (empresaObjetivo != null) {
-            for(Empresa c : selectorEmpresa.getItems()) {
+            }
+        } else if (empresaObjetivo != null) {
+            for(Empresa c : datosOriginales) {
                 if(c.getId().equals(empresaObjetivo.getId())) {
                     selectorEmpresa.setValue(c);
                     break;
                 }
             }
         }
+
         //Campos del formulario
         rejilla.add(new Label("Empresa:"), 0, 0); rejilla.add(selectorEmpresa, 1, 0);
         rejilla.add(new Label("Tipo:"), 0, 1);    rejilla.add(campoTipo, 1, 1);
         rejilla.add(new Label("Cantidad:"), 0, 2); rejilla.add(campoCantidad, 1, 2);
         rejilla.add(new Label("kgCO2e:"), 0, 3);  rejilla.add(campoCo, 1, 3);
-        //Despliegue del formulario
+
         ventanaRegistro.getDialogPane().setContent(rejilla);
+
         //Botones de guardado
         ButtonType btnGuardar = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
         ventanaRegistro.getDialogPane().getButtonTypes().addAll(btnGuardar, ButtonType.CANCEL);
@@ -1097,32 +1336,39 @@ public class AppCT extends Application {
         ventanaRegistro.setResultConverter(dialogButton -> {
             if (dialogButton == btnGuardar) {
                 try {
+                   // Intentamos obtener el valor seleccionado, o buscamos por el texto escrito
                     Empresa empresaSeleccionada = selectorEmpresa.getValue();
-                    String tipo = campoTipo.getText();
-                    double cantidad = Double.parseDouble(campoCantidad.getText());
-                    double co2e = Double.parseDouble(campoCo.getText());
-                    //Control de datos
-                    if (empresaSeleccionada == null || tipo.isBlank()) {
-                        throw new IllegalArgumentException("Datos incompletos");
+                    // Si el usuario escribió el nombre exacto pero no hizo click, intentamos encontrarlo
+                    if (empresaSeleccionada == null) {
+                        String textoEscrito = selectorEmpresa.getEditor().getText();
+                        empresaSeleccionada = datosOriginales.stream()
+                                .filter(e -> e.getNombreEmpresa().equalsIgnoreCase(textoEscrito))
+                                .findFirst().orElse(null);
                     }
 
-                    // Si la acción es la de editar, mantenemos el ID y la fecha original
+                    String tipo = campoTipo.getText();
+                    String textoCantidad = campoCantidad.getText().replace(",", ".");
+                    String textoCo2 = campoCo.getText().replace(",", ".");
+
+                    double cantidad = Double.parseDouble(textoCantidad);
+                    double co2e = Double.parseDouble(textoCo2);
+
+
+                    if (empresaSeleccionada == null || tipo.isBlank()) {
+                        Platform.runLater(() -> popUpError("Datos Incompletos", "Selecciona una empresa válida", "Debes seleccionar una empresa de la lista."));
+                        return null; // Forzamos a que no cierre si no hay empresa
+                    }
+
                     if (registroEmision != null) {
-                        Emisiones emisionEditada = new Emisiones(
-                                registroEmision.getId(), // ID asociado previamente a la emisión
-                                tipo,
-                                cantidad,
-                                co2e,
-                                registroEmision.getFecha().toString(), // Mantenemos la fecha de registro original
-                                empresaSeleccionada.getId()
-                        );
-                        return emisionEditada;
+                        return new Emisiones(registroEmision.getId(), tipo, cantidad, co2e, registroEmision.getFecha().toString(), empresaSeleccionada.getId());
                     } else {
-                        // Nueva emisión para la empresa
                         return new Emisiones(tipo, cantidad, co2e, empresaSeleccionada.getId());
                     }
+                } catch (NumberFormatException e) {
+                    Platform.runLater(() -> popUpError("Error", "Formato numérico inválido", "Usa solo números."));
+                    return null;
                 } catch (Exception e) {
-                    Platform.runLater(() -> popUpError("Error", "Datos inválidos", "Revise los campos numéricos."));
+                    Platform.runLater(() -> popUpError("Error", "Datos inválidos", "Revise los campos."));
                     return null;
                 }
             }
@@ -1133,14 +1379,12 @@ public class AppCT extends Application {
         Optional<Emisiones> resultado = ventanaRegistro.showAndWait();
         resultado.ifPresent(rec -> {
             if (rec.getId() != null) {
-                //Si tiene ID es modificación
                 gestorBD.actualizarEmision(rec, usuarioSesionActual);
             } else {
-                //Si no tiene ID es nuevo registro
                 gestorBD.nuevaEmision(rec);
             }
             cargarListaEmision();
-            cargarListaEmpresa(); // Actualizamos los CO2e totales de las empresas, después de la modificación o adición
+            cargarListaEmpresa();
         });
     }
 
@@ -1248,17 +1492,13 @@ public class AppCT extends Application {
 
             if (usuarioEditado == null) {
                 // Creamos nuevo usuario si no existe
-                if (gestorBD.crearUsuario(u.getNombreUsuario(), contrasena, u.getNombreCompleto(), u.getRol())) {
-                    popUpOk("Usuario Creado", "El usuario " + u.getNombreUsuario() + " ha sido registrado.");
+                if (gestorBD.crearUsuario(u.getNombreUsuario(), contrasena, u.getNombreCompleto(), u.getRol(), usuarioSesionActual)) {popUpOk("Usuario Creado", "El usuario " + u.getNombreUsuario() + " ha sido registrado.");
                 } else {
                     popUpError("Error", "No se pudo crear el usuario", "Es posible que el nombre de usuario ya exista.");
-                    // Nota: Aquí el diálogo ya se cerró porque devolvió un resultado válido.
-                    // Si quisieras controlar duplicados sin cerrar, habría que mover la llamada a BD dentro del EventFilter.
                 }
             } else {
                 // Actualizamos el usuario existente
-                if (gestorBD.actualizarUsuarioAdmin(u, contrasena)) {
-                    popUpOk("Usuario Actualizado", "Cambios guardados correctamente.");
+                if (gestorBD.actualizarUsuarioAdmin(u, contrasena, usuarioSesionActual)) { popUpOk("Usuario Actualizado", "Cambios guardados correctamente.");
                 } else {
                     popUpError("Error", "No se pudo actualizar", null);
                 }
@@ -1275,101 +1515,194 @@ public class AppCT extends Application {
      *
      * @param empresa Empresa propietaria de las sedes.
      */
+    /**
+     * Ventana de Gestión Integral de Sedes.
+     * Muestra una tabla con las sedes de la empresa y un formulario lateral para altas/bajas/modificaciones.
+     * Satisface el requerimiento de visualizar claramente el estado y las sedes existentes.
+     */
     private void mostrarGestorSedes(Empresa empresa) {
-        // Configuración base del diálogo y carga de estilos CSS
-        Dialog<Void> dialogoRegistroSedes = new Dialog<>();
-        dialogoRegistroSedes.setTitle("Gestión de Sedes - " + empresa.getNombreEmpresa());
-        dialogoRegistroSedes.setHeaderText("Crear nueva sede o editar existente");
-        try { dialogoRegistroSedes.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm()); } catch(Exception e){}
-        dialogoRegistroSedes.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        Dialog<Void> dialogo = new Dialog<>();
+        dialogo.setTitle("Gestión de Sedes - " + empresa.getNombreEmpresa());
+        dialogo.initOwner(contenidoPrincipal.getScene().getWindow());
+        try { dialogo.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm()); } catch(Exception e){}
 
-        // Layout principal del formulario
-        GridPane rejillaTabla = new GridPane();
-        rejillaTabla.setHgap(10); rejillaTabla.setVgap(10); rejillaTabla.setPadding(new Insets(20));
+        // Botón de cerrar
+        dialogo.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
 
-        // --- SELECTOR DE MODO (CREAR vs EDITAR) ---
-        // Este ComboBox actúa como interruptor: si seleccionas algo, pasas a modo edición.
-        ComboBox<Sede> comboSedes = new ComboBox<>();
-        comboSedes.setPromptText("Seleccionar para Editar (o dejar vacío para Nueva)");
-        comboSedes.setPrefWidth(300);
+        // --- LAYOUT PRINCIPAL ---
+        HBox contenedorPrincipal = new HBox(20);
+        contenedorPrincipal.setPadding(new Insets(20));
+        contenedorPrincipal.setPrefSize(700, 400);
 
-        // Recuperamos las sedes actuales de la BD para llenar la lista
-        List<Sede> sedesExistentes = gestorBD.getSedesPorEmpresa(empresa.getId());
-        comboSedes.setItems(FXCollections.observableArrayList(sedesExistentes));
+        // --- PARTE 1: TABLA DE SEDES (IZQUIERDA) ---
+        VBox panelTabla = new VBox(10);
+        Text tituloTabla = new Text("Sedes Actuales");
+        tituloTabla.getStyleClass().add("card-title");
 
-        // Campos de texto para los datos
+        TableView<Sede> tablaSedes = new TableView<>();
+        tablaSedes.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        TableColumn<Sede, String> colCiudad = new TableColumn<>("CIUDAD");
+        colCiudad.setCellValueFactory(new PropertyValueFactory<>("ciudad"));
+
+        TableColumn<Sede, String> colDireccion = new TableColumn<>("DIRECCIÓN");
+        colDireccion.setCellValueFactory(new PropertyValueFactory<>("direccion"));
+
+        tablaSedes.getColumns().addAll(colCiudad, colDireccion);
+
+        // Cargar datos
+        ObservableList<Sede> listaSedes = FXCollections.observableArrayList(gestorBD.getSedesPorEmpresa(empresa.getId()));
+        tablaSedes.setItems(listaSedes);
+        VBox.setVgrow(tablaSedes, Priority.ALWAYS);
+        panelTabla.getChildren().addAll(tituloTabla, tablaSedes);
+        HBox.setHgrow(panelTabla, Priority.ALWAYS);
+
+        // --- PARTE 2: FORMULARIO (DERECHA) ---
+        VBox panelFormulario = new VBox(15);
+        panelFormulario.setPrefWidth(300);
+        panelFormulario.setPadding(new Insets(10));
+        panelFormulario.setStyle("-fx-background-color: #1F2937; -fx-background-radius: 8; -fx-padding: 15; -fx-border-color: #374151; -fx-border-width: 1; -fx-border-radius: 8;");
+
+        Text tituloForm = new Text("Nueva Sede");
+        tituloForm.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-fill: #E5E7EB;");
         TextField txtCiudad = new TextField(); txtCiudad.setPromptText("Ciudad");
         TextField txtDireccion = new TextField(); txtDireccion.setPromptText("Dirección");
 
-        // Botón de acción principal (su texto y función cambian dinámicamente)
-        Button btnAccion = new Button("Crear Nueva Sede");
-        btnAccion.setDefaultButton(true);
+        // Botones
+        Button btnGuardar = new Button("Guardar cambios", new FontIcon(MaterialDesign.MDI_CONTENT_SAVE));
+        btnGuardar.setMaxWidth(Double.MAX_VALUE);
+        btnGuardar.setDefaultButton(true);
 
-        // Al seleccionar una sede existente, rellenamos los campos y cambiamos el botón a "Guardar Modificación"
-        comboSedes.setOnAction(e -> {
-            Sede sedeSeleccionada = comboSedes.getValue();
-            if (sedeSeleccionada != null) {
-                txtCiudad.setText(sedeSeleccionada.getCiudad());
-                txtDireccion.setText(sedeSeleccionada.getDireccion());
-                btnAccion.setText("Guardar Modificación");
+        Button btnLimpiar = new Button("Crear nueva Sede", new FontIcon(MaterialDesign.MDI_ERASER));
+        btnLimpiar.setMaxWidth(Double.MAX_VALUE);
+
+        Button btnBorrar = new Button("Eliminar Sede seleccionada", new FontIcon(MaterialDesign.MDI_DELETE));
+        btnBorrar.setMaxWidth(Double.MAX_VALUE);
+        btnBorrar.getStyleClass().add("btn-delete");
+        btnBorrar.setDisable(true);
+
+        // LÓGICA DE SELECCIÓN EN TABLA
+        tablaSedes.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) {
+                // Modo Edición
+                tituloForm.setText("Editando: " + newV.getCiudad());
+                txtCiudad.setText(newV.getCiudad());
+                txtDireccion.setText(newV.getDireccion());
+                btnGuardar.setText("Actualizar Sede");
+                btnBorrar.setDisable(false);
             } else {
-                txtCiudad.clear(); txtDireccion.clear();
-                btnAccion.setText("Crear Nueva Sede");
+                // Modo Creación (Se activa al limpiar selección)
+                tituloForm.setText("Nueva Sede");
+                txtCiudad.clear();
+                txtDireccion.clear();
+                btnGuardar.setText("Guardar cambios");
+                btnBorrar.setDisable(true);
             }
         });
 
-        // Botón "Limpiar/Nueva": Resetea el formulario para permitir una nueva inserción
-        Button btnLimpiar = new Button("Nueva");
+        // ACCIÓN: LIMPIAR / CREAR NUEVA
         btnLimpiar.setOnAction(e -> {
-            comboSedes.getSelectionModel().clearSelection();
-            txtCiudad.clear(); txtDireccion.clear();
-            btnAccion.setText("Crear Nueva Sede");
+            tablaSedes.getSelectionModel().clearSelection();
+            tituloForm.setText("Nueva Sede");
+            txtCiudad.clear();
+            txtDireccion.clear();
+            btnGuardar.setText("Guardar cambios");
+            btnBorrar.setDisable(true);
+            txtCiudad.requestFocus();
         });
 
-        // ACCIÓN GUARDAR
-        btnAccion.setOnAction(e -> {
-            String ciudad = txtCiudad.getText();
-            String direccion = txtDireccion.getText();
-            // Validación
-            if (ciudad.isEmpty() || direccion.isEmpty()) {
-                popUpError("Error", "Complete los campos", null);
+        // ACCIÓN: GUARDAR
+        btnGuardar.setOnAction(e -> {
+            String ciudad = txtCiudad.getText().trim();
+            String dir = txtDireccion.getText().trim();
+
+            if (ciudad.isEmpty() || dir.isEmpty()) {
+                popUpError("Faltan datos", "Ciudad y dirección obligatorias", null);
                 return;
             }
-            Sede opcionSede = comboSedes.getValue();
-            boolean opcionFinal;
-            if (opcionSede == null) {
-                // NUEVA ALTA
-                Sede nueva = new Sede(ciudad, direccion, empresa.getId());
-                opcionFinal = gestorBD.registrarSedeConAuditoria(nueva, usuarioSesionActual, empresa.getNombreEmpresa());
-            } else {
-                // MODIFICACIÓN
-                Sede editada = new Sede(opcionSede.getId(), ciudad, direccion, empresa.getId());
-                opcionFinal = gestorBD.actualizarSede(editada, usuarioSesionActual, empresa.getNombreEmpresa());
+
+            Sede seleccionada = tablaSedes.getSelectionModel().getSelectedItem();
+
+            // Controlamos los duplicados de Sede
+            // Comprobamos si en la lista ya existe la combinación ciudad-dirección
+            // Excluyendo la propia sede si estamos editando
+            boolean existe = listaSedes.stream().anyMatch(s ->
+                    s.getCiudad().equalsIgnoreCase(ciudad) &&
+                            s.getDireccion().equalsIgnoreCase(dir) &&
+                            (seleccionada == null || !s.getId().equals(seleccionada.getId())) // Si editamos, no chocamos con nosotros mismos
+            );
+
+            if (existe) {
+                popUpError("Sede Duplicada", "Ubicación ya registrada",
+                        "La sede de " + ciudad + " en " + dir + " ya existe en esta empresa.");
+                return;
             }
-            // Feedback al usuario
-            if (opcionFinal) {
-                popUpOk("Operación Exitosa", "Cambios guardados y auditados.");
-                dialogoRegistroSedes.close();
+            // ----------------------------------------
+            // ---COMMITS de cambios en las sedes---
+            // ----------------------------------------
+
+            boolean guardadoCorrecto;
+            if (seleccionada == null) {
+                // Creamos la nueva sede
+                Sede nueva = new Sede(ciudad, dir, empresa.getId());
+                guardadoCorrecto = gestorBD.registrarSedeConAuditoria(nueva, usuarioSesionActual, empresa.getNombreEmpresa());
             } else {
-                popUpError("Error", "No se pudo guardar.", null);
+                // Actualizamos la sede existente
+                Sede editada = new Sede(seleccionada.getId(), ciudad, dir, empresa.getId());
+                guardadoCorrecto = gestorBD.actualizarSede(editada, usuarioSesionActual, empresa.getNombreEmpresa());
+            }
+
+            if (guardadoCorrecto) {
+                // Refrescar tabla para mostrar datos nuevos
+                listaSedes.setAll(gestorBD.getSedesPorEmpresa(empresa.getId()));
+                // Aquí limpiamos para permitir seguir añadiendo nuevas sedes
+                tablaSedes.getSelectionModel().clearSelection();
+                tituloForm.setText("Nueva Sede");
+                txtCiudad.clear();
+                txtDireccion.clear();
+                btnGuardar.setText("Guardar cambios");
+                btnBorrar.setDisable(true);
+
+                popUpOk("Éxito", "Operación realizada correctamente.");
+            } else {
+                popUpError("Error", "No se pudo guardar la sede", null);
             }
         });
 
-        // Construcción visual de la rejilla
-        rejillaTabla.add(new Label("Editar existente:"), 0, 0);
-        HBox selectorCombo = new HBox(10, comboSedes, btnLimpiar);
-        rejillaTabla.add(selectorCombo, 1, 0);
-        rejillaTabla.add(new Separator(), 0, 1, 2, 1); // Línea separadora visual
-        rejillaTabla.add(new Label("Ciudad:"), 0, 2); rejillaTabla.add(txtCiudad, 1, 2);
-        rejillaTabla.add(new Label("Dirección:"), 0, 3); rejillaTabla.add(txtDireccion, 1, 3);
-        rejillaTabla.add(btnAccion, 1, 4);
+        // Acción para borrar las sedes
+        btnBorrar.setOnAction(e -> {
+            Sede seleccionada = tablaSedes.getSelectionModel().getSelectedItem();
+            if (seleccionada == null) return;
 
-        dialogoRegistroSedes.getDialogPane().setContent(rejillaTabla);
-        dialogoRegistroSedes.showAndWait();
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Borrar Sede");
+            confirm.setHeaderText("¿Eliminar la sede de " + seleccionada.getCiudad() + "?");
+            try { confirm.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm()); } catch(Exception ex){}
+
+            if (confirm.showAndWait().get() == ButtonType.OK) {
+                if (gestorBD.borrarSede(seleccionada.getId(), seleccionada.getCiudad(), usuarioSesionActual, empresa.getNombreEmpresa())) {
+                    listaSedes.setAll(gestorBD.getSedesPorEmpresa(empresa.getId()));
+                    tablaSedes.getSelectionModel().clearSelection();
+                    tituloForm.setText("Nueva Sede");
+                    txtCiudad.clear();
+                    txtDireccion.clear();
+                    btnGuardar.setText("Guardar cambios");
+                    btnBorrar.setDisable(true);
+                } else {
+                    popUpError("Error", "No se pudo eliminar", null);
+                }
+            }
+        });
+
+        panelFormulario.getChildren().addAll(tituloForm, new Label("Ciudad:"), txtCiudad, new Label("Dirección:"), txtDireccion, new Separator(), btnGuardar, btnLimpiar, btnBorrar);
+
+        contenedorPrincipal.getChildren().addAll(panelTabla, panelFormulario);
+        dialogo.getDialogPane().setContent(contenedorPrincipal);
+        dialogo.showAndWait();
     }
 
     // ==========================================
-    // 7. CARGA DE DATOS (REFRESCO)
+    // CARGA DE DATOS
     // ==========================================
 
     /**
@@ -1420,7 +1753,7 @@ public class AppCT extends Application {
      */
     private void cargarListaUsuarios() {
         infoUsuarios.clear();
-        // Llama al método nuevo que creamos en GestorBD
+        // Llama al método para listar todos los usuarios
         infoUsuarios.addAll(gestorBD.getTodosLosUsuarios());
     }
 
@@ -1573,7 +1906,7 @@ public class AppCT extends Application {
     }
 
     // ==========================================
-    // 9. UTILIDADES Y AYUDA
+    //  UTILIDADES Y AYUDA
     // ==========================================
 
     /**
@@ -1653,5 +1986,23 @@ public class AppCT extends Application {
             alertaCompletado.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm());
         } catch (Exception e) { }
         alertaCompletado.showAndWait();
+    }
+
+    /**
+     * Genera un texto descriptivo con TODAS las columnas por las que se está ordenando.
+     * Ejemplo: "Sector (Asc), Nombre (Desc)"
+     */
+    private String getTextoFiltro(TableView<?> tabla) {
+        if (tabla.getSortOrder().isEmpty()) {
+            return "Por defecto";
+        }
+
+        // Recorremos todas las columnas activas en el ordenamiento y las unimos con comas
+        return tabla.getSortOrder().stream()
+                .map(col -> {
+                    String direccion = (col.getSortType() == TableColumn.SortType.ASCENDING) ? "Asc" : "Desc";
+                    return col.getText() + " (" + direccion + ")";
+                })
+                .collect(java.util.stream.Collectors.joining(" + "));
     }
 }

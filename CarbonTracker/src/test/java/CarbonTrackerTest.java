@@ -111,11 +111,13 @@ public class CarbonTrackerTest {
     @DisplayName("PU-08: GestorBD - Crear Usuario")
     void testCrearUsuario() {
         Rol rolUser = new Rol(2L, "USUARIO");
-        // Intentamos crear un usuario nuevo
-        boolean resultado = gestorBD.crearUsuario("testUser", "1234", "Test User", rolUser);
+
+        // Intentamos crear un usuario nuevo.
+        // Añadimos 'null' al final porque en este test no hay un administrador logueado actuando como autor.
+        boolean resultado = gestorBD.crearUsuario("testUser", "1234", "Test User", rolUser, null);
+
         assertTrue(resultado, "El usuario debería crearse correctamente");
     }
-
     @Test
     @Order(9)
     @DisplayName("PU-09: GestorBD - Login Correcto")

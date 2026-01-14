@@ -483,3 +483,114 @@
 .btn-add-user .ikonli-font-icon {
     -fx-icon-color: white;
 }
+
+/* ========================================================
+    ESTILO COMBOBOX BUSCADOR
+   ======================================================== */
+
+/* 0. EL CONTENEDOR PRINCIPAL (Borramos su estilo para que vaya acorde con el resto) */
+.combo-box-base:editable {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* 1. La caja de texto (Input) */
+.combo-box-base:editable .text-field {
+    -fx-background-color: #1F2937;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: #9CA3AF;
+    -fx-background-radius: 4;
+    -fx-border-color: #4B5563;
+    -fx-border-radius: 4;
+    -fx-background-insets: 0;
+}
+
+/* 2. Interacción para escribir (Foco) */
+.combo-box-base:editable .text-field:focused {
+    -fx-border-color: #3B82F6;
+    -fx-background-color: #1F2937;
+}
+
+/* 3. Flecha */
+.combo-box-base:editable .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 8 0 8;
+}
+.combo-box-base:editable .arrow {
+    -fx-background-color: #9CA3AF;
+}
+.combo-box-base:editable .arrow-button:hover .arrow {
+    -fx-background-color: #3B82F6;
+}
+
+/* 4. La lista desplegable (El popup) */
+.combo-box-popup .list-view {
+    -fx-background-color: #1F2937;
+    -fx-border-color: #374151;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 8, 0, 0, 2);
+}
+
+/* 5. Cada ítem de la lista */
+.combo-box-popup .list-cell {
+    -fx-padding: 8 10 8 10;
+    -fx-text-fill: #E5E7EB;
+    -fx-background-color: #1F2937;
+}
+
+/* 6. Ítem seleccionado o hover */
+.combo-box-popup .list-cell:filled:selected,
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: #3B82F6;
+    -fx-text-fill: #FFFFFF;
+    -fx-cursor: hand;
+}
+
+/* 7. Barra de scroll */
+.combo-box-popup .scroll-bar:vertical .thumb {
+    -fx-background-color: #4B5563;
+}
+.combo-box-popup .scroll-bar:vertical .track {
+    -fx-background-color: #111827;
+}
+
+/* ========================================================
+   CORRECCIONES DE DIÁLOGOS
+   ======================================================== */
+
+/* 1. ARREGLO TABLAS DENTRO DE POPUPS OSCUROS */
+/* Forzamos texto blanco solo en tablas que estén dentro de un dialog-pane */
+.dialog-pane .table-view .table-cell {
+    -fx-text-fill: #E5E7EB; /* Texto gris claro/blanco */
+}
+/* Hover en filas dentro del diálogo */
+.dialog-pane .table-row-cell:hover {
+    -fx-background-color: #374151; /* Un gris un poco más claro que el fondo */
+}
+/* Selección en filas dentro del diálogo */
+.dialog-pane .table-row-cell:filled:selected {
+    -fx-background-color: #2563EB;
+    -fx-text-fill: white;
+}
+
+.dialog-pane .table-row-cell {
+    -fx-background-color: transparent;
+}
+
+
+/* 2. ARREGLO DEL MARCO BLANCO EN EL BUSCADOR */
+.combo-box,
+.combo-box-base,
+.combo-box-base:editable {
+    -fx-background-color: transparent !important;
+    -fx-background-insets: 0 !important;
+    -fx-padding: 0 !important;
+    -fx-border-color: transparent !important;
+    -fx-border-width: 0 !important;
+}
+
+/* Aseguramos que solo se vea el TextField interno */
+.combo-box-base:editable .text-field {
+    -fx-background-radius: 4;
+    -fx-background-insets: 0;
+}

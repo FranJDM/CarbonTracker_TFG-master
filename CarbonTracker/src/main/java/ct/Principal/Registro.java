@@ -191,7 +191,6 @@ public class Registro extends Dialog<Usuario> {
         //Botón de volver al panel de login
         Button botonVolver = new Button("Volver");
         botonVolver.setCancelButton(true); // También si se pulsa Esc
-
         botonVolver.setOnAction(e -> {
             // Limpiamos los campos del login
             msgInfo.setText("");
@@ -299,13 +298,14 @@ public class Registro extends Dialog<Usuario> {
         String nomCompleto = campoNombreCompleto.getText();
         Rol rol = comboRoles.getValue();
 
+
         // Bucle para comprobar que no queda ningún campo vacío o incorrecto.
         if (usuario.isEmpty() || pass.isEmpty() || nomCompleto.isEmpty() || rol == null) {
             msgErrorRegistro.setText("Todos los campos son obligatorios.");
             return;
         }
 
-        boolean registroCorrecto = gestorBD.crearUsuario(usuario, pass, nomCompleto, rol);
+        boolean registroCorrecto = gestorBD.crearUsuario(usuario, pass, nomCompleto, rol, null);
 
         if (registroCorrecto) {
             // Éxito en la creación

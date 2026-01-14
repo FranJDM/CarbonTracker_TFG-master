@@ -29,6 +29,13 @@
         h2 {
             color: #1A2035;
             margin-top: 30px;
+            border-left: 5px solid #3B82F6;
+            padding-left: 10px;
+        }
+        h3 {
+            color: #4B5563;
+            margin-top: 20px;
+            font-size: 1.1em;
         }
         code {
             background-color: #e0e7ff;
@@ -50,49 +57,62 @@
             margin-left: 10px;
             font-weight: bold;
         }
+        .new-feature {
+            color: #059669;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Manual de Usuario - Carbon Tracker</h1>
-    <p>Bienvenido al manual de usuario de Carbon Tracker. Aquí encontrarás una guía corta sobre cómo utilizar las funciones principales de la aplicación.</p>
+    <p>Bienvenido al manual de usuario de Carbon Tracker. Esta guía detalla las funcionalidades de gestión, cálculo y auditoría de la aplicación.</p>
 
     <h2>Pantallas Principales</h2>
     <p>La aplicación se divide en secciones accesibles desde el panel lateral izquierdo:</p>
     <ul>
-        <li><b>EMPRESAS:</b> Permite ver listados, gestionar acciones y agregar registros.</li>
-        <li><b>EMISIONES:</b> Gestión completa del cálculo de huella de carbono.</li>
-        <li><b>OPTIMIZACIÓN:</b> Análisis inteligente y reportes.</li>
-        <li><b>ADMINISTRACIÓN:</b> Gestión de usuarios y auditoría (Solo visible para administradores).</li>
+        <li><b>EMPRESAS:</b> Gestión integral de clientes y sus sedes.</li>
+        <li><b>EMISIONES:</b> Control y cálculo de huella de carbono.</li>
+        <li><b>OPTIMIZACIÓN:</b> Análisis inteligente y generación de informes.</li>
+        <li><b>ADMINISTRACIÓN:</b> Gestión de usuarios y auditoría avanzada (Solo Administradores).</li>
     </ul>
 
     <h2>Gestión de Empresas</h2>
     <ul>
-        <li><b>Ver Empresas:</b> Muestra un listado de todas las empresas registradas. Desde aquí puedes buscar, editar, eliminar o ver las emisiones de una empresa específica.</li>
-        <li><b>Añadir Empresa:</b> Abre un formulario para registrar una nueva empresa especificando nombre y sector.</li>
-        <li><b>Buscar Empresa:</b> Usa la barra de búsqueda para filtrar la lista por nombre o sector.</li>
+        <li><b>Barra de Estado de Filtros:</b> <span class="new-feature">NUEVO</span> Justo encima de la tabla, una barra informativa muestra en tiempo real qué términos de búsqueda se están aplicando y el orden activo de las columnas (ej: <i>"Filtro: Solar | Orden: Sector (Asc)"</i>).</li>
+        <li><b>Ver Empresas:</b> Muestra el listado de empresas. Usa la barra de búsqueda para filtrar dinámicamente.</li>
         <li><b>Acciones de Empresa:</b> En la columna "ACCIONES":
             <ul>
-                <li>(Icono de Ojo): Ver todas las emisiones de esa empresa.</li>
-                <li>(Icono de Gráfico): Abrir Dashboard específico de esa empresa.</li>
-                <li>(Icono de Ubicación +): Gestionar Sedes/Sucursales.</li>
+                <li>(Icono de Ojo): Ver todas las emisiones asociadas.</li>
+                <li>(Icono de Gráfico): Abrir Dashboard de análisis.</li>
                 <li>(Icono de Lápiz): Editar nombre o sector.</li>
-                <li>(Icono de Canasta): Eliminar la empresa y sus emisiones.</li>
+                <li>(Icono de Canasta): Eliminar la empresa.</li>
+                <li><b>(Icono de Ubicación +): Gestión de Sedes.</b> <span class="new-feature">MEJORADO</span>
+                    <br>Abre la ventana de gestión integral.
+                    <ul>
+                        <li><b>Izquierda (Tabla):</b> Visualiza todas las sedes existentes de la empresa de un vistazo.</li>
+                        <li><b>Derecha (Formulario):</b> Permite crear nuevas sedes o editar las existentes seleccionándolas en la tabla.</li>
+                        <li><b>Control de Duplicados:</b> El sistema avisará si intentas registrar una sede ya existente en la misma dirección.</li>
+                        <li><b>Eliminar:</b> Permite borrar sedes individuales seleccionándolas de la lista.</li>
+                    </ul>
+                </li>
             </ul>
         </li>
     </ul>
 
     <h2>Gestión de Emisiones</h2>
     <ul>
-        <li><b>Ver Todas las Emisiones:</b> Muestra un listado completo de los registros de emisiones.</li>
-        <li><b>Añadir Emisión:</b> Abre un formulario para registrar una nueva emisión. Si eres administrador, podrás cambiar la empresa asignada; si eres empleado, se asignará a tu empresa o a la seleccionada.</li>
-        <li><b>Buscar Emisiones:</b> Filtra por nombre de empresa, tipo o fecha.</li>
-        <li><b>Acciones de Emisión:</b>
+        <li><b>Indicador de Filtros:</b> Al igual que en empresas, visualiza encima de la tabla los criterios de filtrado y ordenación actuales (incluyendo ordenación múltiple por varias columnas).</li>
+        <li><b>Añadir Emisión:</b> Abre el formulario de registro.
             <ul>
-                <li>(Icono de Lápiz): Modificar valores de la emisión.</li>
-                <li>(Icono de Canasta): Eliminar permanentemente el registro.</li>
+                <li><b>Selector Inteligente:</b> <span class="new-feature">NUEVO</span> El campo de selección de empresa incluye ahora un buscador integrado. Escribe parte del nombre para encontrar la empresa rápidamente sin hacer scroll.</li>
+                <li><b>Formato Numérico:</b> Los campos numéricos grandes se formatean automáticamente para evitar notación científica, facilitando la lectura.</li>
             </ul>
         </li>
+        <li><b>Buscar Emisiones:</b> Filtra instantáneamente por nombre de empresa, tipo o fecha.</li>
+        <li><b>Acciones:</b> Modificar o eliminar registros de huella de carbono.</li>
     </ul>
 
     <h2>Optimización</h2>
@@ -103,33 +123,32 @@
     </ul>
 
     <h2>Gestión de Usuarios <span class="admin-tag">SOLO ADMIN</span></h2>
-    <p>Panel exclusivo para controlar el acceso a la aplicación y los roles del equipo.</p>
     <ul>
-        <li><b>Lista de Usuarios:</b> Muestra todos los usuarios registrados, su rol y su estado actual (<code>ACTIVO</code> en verde o <code>BLOQUEADO</code> en rojo).</li>
-        <li><b>Crear Usuario:</b> Botón superior para dar de alta un nuevo usuario, asignando nombre, login, contraseña y rol.</li>
-        <li><b>Acciones sobre Usuarios:</b>
-            <ul>
-                <li>(Icono de Lápiz): Editar nombre, cambiar rol o restablecer contraseña.</li>
-                <li>(Icono de Candado): <b>Bloquear/Desbloquear</b>. Un usuario bloqueado no podrá iniciar sesión (recibirá una alerta), pero sus datos se conservan.</li>
-                <li>(Icono de Canasta): <b>Eliminar</b>. Borra al usuario permanentemente. <br><i>Nota de seguridad: Si el usuario tiene historial en la auditoría, el sistema impedirá el borrado para mantener la integridad de los datos. En ese caso, se recomienda bloquearlo.</i></li>
-            </ul>
-        </li>
+        <li><b>Lista de Usuarios:</b> Muestra usuarios registrados, rol y estado (<code>ACTIVO</code> / <code>BLOQUEADO</code>).</li>
+        <li><b>Crear Usuario:</b> Alta de nuevos usuarios con asignación de roles.</li>
+        <li><b>Acciones:</b> Editar datos, bloquear acceso (conservando datos) o eliminar usuario (si no tiene historial crítico).</li>
     </ul>
 
-    <h2>Auditoría / Logs <span class="admin-tag">SOLO ADMIN</span></h2>
+    <h2>Auditoría y Logs <span class="admin-tag">SOLO ADMIN</span></h2>
+    <p>El panel de auditoría se ha dividido en dos vistas para un mejor control:</p>
+
+    <h3>1. Logs de Seguridad (Botón "Logs de Seguridad")</h3>
+    <p>Registra las acciones críticas que afectan a la integridad del sistema.</p>
     <ul>
-        <li><b>Registro de Seguridad:</b> Tabla que recoge todas las acciones críticas realizadas en el sistema.</li>
-        <li><b>Campos:</b>
-            <ul>
-                <li><code>FECHA/HORA</code>: Momento exacto de la acción.</li>
-                <li><code>USUARIO</code>: Quién realizó la acción.</li>
-                <li><code>ACCIÓN</code>: Descripción detallada (ej: "Alta Sede", "Modificación Emisión").</li>
-            </ul>
-        </li>
+        <li><b>Contenido:</b> Altas y bajas de usuarios, modificaciones de datos sensibles, borrado de empresas, login, etc.</li>
+        <li><b>Datos:</b> Muestra Usuario, Fecha exacta y el Detalle de la acción.</li>
     </ul>
 
-    <h2>Exportar a CSV</h2>
-    <p>En las vistas de Empresas y Emisiones, el botón <b>"Exportar Vista (CSV)"</b> permite descargar los datos visibles (respetando los filtros de búsqueda aplicados) a un archivo compatible con Excel.</p>
+    <h3>2. Historial de Informes (Botón "Historial de Informes") <span class="new-feature">NUEVO</span></h3>
+    <p>Cumple con la normativa de trazabilidad de datos exportados.</p>
+    <ul>
+        <li><b>Función:</b> Cada vez que un usuario utiliza la función <b>"Exportar CSV"</b>, el sistema guarda un registro.</li>
+        <li><b>Qué almacena:</b> Guarda quién generó el informe, cuándo, y lo más importante: <b>qué filtros y criterios de ordenación</b> estaban aplicados en ese momento.</li>
+        <li><b>Utilidad:</b> Permite auditar qué información exacta se extrajo del sistema en el pasado.</li>
+    </ul>
+
+    <h2>Exportación de Datos</h2>
+    <p>En las vistas de Empresas y Emisiones, el botón <b>"Exportar Vista (CSV)"</b> genera un archivo Excel con los datos actuales en pantalla. Esta acción queda registrada automáticamente en el <i>Historial de Informes</i>.</p>
 
 </div>
 </body>

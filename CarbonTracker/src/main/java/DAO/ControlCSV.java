@@ -6,6 +6,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 /**
  * Clase para la gestión y exportación de datos a formato CSV.
@@ -14,6 +16,9 @@ import java.util.List;
  * listados de empresas y registros de emisiones en archivos de texto.
  */
 public class ControlCSV {
+
+    // Formateador de fecha para que salga en español en el CSV (dd/MM/yyyy)
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     /**
      * Genera un archivo CSV con el listado completo de empresas proporcionado.
      * <p>
@@ -27,11 +32,10 @@ public class ControlCSV {
     public static void exportarEmpresas(List<Empresa> empresas, File archivo) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(archivo))) {
             // Escribir cabecera
-            bw.write("ID,Nombre,Sector\n");
+            bw.write("Nombre;Sector\n");
             // Escribir datos
             for (Empresa empresa : empresas) {
-                bw.write(String.format("%d,\"%s\",\"%s\"\n",
-                        empresa.getId(),
+                bw.write(String.format("\"%s\";\"%s\"\n",
                         auxiliarComillas(empresa.getNombreEmpresa()),
                         auxiliarComillas(empresa.getSector())
                 ));
@@ -51,16 +55,37 @@ public class ControlCSV {
      */
     public static void exportarEmisiones(List<Emisiones> emisiones, File archivoEmisiones) throws IOException {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(archivoEmisiones))) {
-            // Escribir cabecera
-            bw.write("ID,Tipo,Cantidad,CO2e,Fecha\n");
-            // Escribir datos
+            // Cabecera con Nombre de Empresa
+            bw.write("Empresa;Tipo;Cantidad;CO2e (kg);Fecha\n");
+
             for (Emisiones registro : emisiones) {
-                bw.write(String.format("%d,\"%s\",%.2f,%.2f,\"%s\"\n",
-                        registro.getId(),
+
+                //Formato fecha
+                String fechaFormateada;
+                try {
+                    //Fecha base
+                    String fechaRaw = registro.getFecha().toString();
+
+                    //Controlamos separadores
+                    if (fechaRaw.contains(" ")) {
+                        fechaRaw = fechaRaw.split(" ")[0];
+                    }
+
+                    // Parseamos y pasamos a formato esp
+                    LocalDate fechaObj = LocalDate.parse(fechaRaw);
+                    fechaFormateada = fechaObj.format(FORMATO_FECHA);
+
+                } catch (Exception e) {
+                    // Controlamos la excepcion e imprimimos la base por si hubiera algún fallo no quedarnos sin dato
+                    fechaFormateada = registro.getFecha().toString();
+                }
+                // Escribimos la línea usando el NOMBRE DE LA EMPRESA
+                bw.write(String.format("\"%s\";\"%s\";%.2f;%.2f;\"%s\"\n",
+                        auxiliarComillas(registro.getNombreEmpresa()), // Nombre real
                         auxiliarComillas(registro.getTipoEmision()),
                         registro.getCantidadEmision(),
                         registro.getCo2e(),
-                        registro.getFecha().toString()
+                        fechaFormateada
                 ));
             }
         }
