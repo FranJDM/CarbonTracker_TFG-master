@@ -84,8 +84,6 @@ El proyecto sigue una arquitectura separada por capas para facilitar el mantenim
 
 ## 📸 Capturas de Pantalla
 
-*(Opcional: Añade aquí imágenes de tu aplicación funcionando)*
-
 1.  **Pantalla de Login**
 2.  **Dashboard Principal**
 3.  **Listado de Emisiones**
