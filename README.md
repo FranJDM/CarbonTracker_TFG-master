@@ -8,6 +8,7 @@ La aplicación permite llevar un registro detallado de las emisiones (electricid
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![JavaFX](https://img.shields.io/badge/JavaFX-21-blue)
 ![Base de Datos](https://img.shields.io/badge/SQLite-Incrustada-lightgrey)
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=FranJDM_CarbonTracker_TFG-master)
 
 ## ✨ Características Principales
 
@@ -83,8 +84,6 @@ El proyecto sigue una arquitectura separada por capas para facilitar el mantenim
     * `manual.html`: Archivo de ayuda.
 
 ## 📸 Capturas de Pantalla
-
-*(Opcional: Añade aquí imágenes de tu aplicación funcionando)*
 
 1.  **Pantalla de Login**
 2.  **Dashboard Principal**
