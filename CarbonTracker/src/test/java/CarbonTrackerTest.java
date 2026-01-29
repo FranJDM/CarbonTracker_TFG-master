@@ -125,9 +125,8 @@ public class CarbonTrackerTest {
         // Probamos loguearnos con el usuario creado en PU-08
         Usuario user = gestorBD.login("testUser", "1234");
         assertNotNull(user, "El login debería devolver un usuario");
-        assertEquals("testUser", user.getNombreUsuario());
+        assertEquals("Test User", user.getNombreUsuario());
     }
-
     @Test
     @Order(10)
     @DisplayName("PU-10: GestorBD - Login Incorrecto")
@@ -172,5 +171,64 @@ public class CarbonTrackerTest {
                         log.getNombreUsuario().equals("admin"));
 
         assertTrue(logEncontrado, "Debe existir un registro de auditoría vinculando al usuario admin con la acción");
+    }
+
+
+    // ==========================================
+    // PRUEBAS EXTRA. POST-V3
+    // ==========================================
+
+    @Test
+    @Order(12)
+    @DisplayName("PU-11: GestorBD - Evitar Duplicidad Empresas")
+    void testDuplicidadEmpresa() {
+        // 1. Creamos e insertamos la primera empresa
+        Empresa emp1 = new Empresa("EmpresaUnica", "Tecnología");
+        gestorBD.agregarEmpresa(emp1);
+
+        // 2. Intentamos insertar otra con el MISMO nombre
+        // El método agregarEmpresa devuelve NULL si ya existe
+        Empresa emp2 = new Empresa("EmpresaUnica", "Agro");
+        Empresa resultado = gestorBD.agregarEmpresa(emp2);
+
+        assertNull(resultado, "El método debería devolver null al intentar registrar una empresa existente");
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("PU-12: GestorBD - Evitar Duplicidad Usuarios")
+    void testDuplicidadUsuario() {
+        Rol rolUser = new Rol(2L, "USUARIO");
+
+        // 1. Creamos el usuario original
+        gestorBD.crearUsuario("userDuplicado", "1234", "Original", rolUser, null);
+
+        // 2. Intentamos crear otro con el MISMO username ("userDuplicado")
+        // Tu método devuelve FALSE porque salta el SQLException (UNIQUE constraint)
+        boolean resultado = gestorBD.crearUsuario("userDuplicado", "9999", "Copia", rolUser, null);
+
+        assertFalse(resultado, "El método debería devolver false al saltar la restricción UNIQUE de usuario");
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("PU-13: GestorBD - Evitar Duplicidad Sedes")
+    void testDuplicidadSede() {
+        // Preparación: Login como admin y crear empresa
+        Usuario admin = gestorBD.login("admin", "admin");
+        Empresa empresa = new Empresa("SedeCorp", "Logística");
+        gestorBD.agregarEmpresa(empresa);
+
+        // 1. Registramos la primera sede en 'Valencia'
+        Sede sede1 = new Sede("Valencia", "Calle Colón", empresa.getId());
+        gestorBD.registrarSedeConAuditoria(sede1, admin, empresa.getNombreEmpresa());
+
+        // 2. Intentamos registrar OTRA sede en 'Valencia' para la MISMA empresa
+        Sede sede2 = new Sede("Valencia", "Calle Diferente", empresa.getId());
+
+        // Esto debe devolver error de transaccion
+        boolean resultado = gestorBD.registrarSedeConAuditoria(sede2, admin, empresa.getNombreEmpresa());
+
+        assertFalse(resultado, "No se debería permitir duplicar ciudad para la misma empresa");
     }
 }

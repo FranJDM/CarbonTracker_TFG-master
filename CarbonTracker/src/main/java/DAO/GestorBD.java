@@ -130,7 +130,8 @@ public class GestorBD {
                 "pais TEXT DEFAULT 'España', " +
                 "direccion TEXT, " +
                 "id_empresa INTEGER NOT NULL, " +
-                "FOREIGN KEY (id_empresa) REFERENCES empresa(id) ON DELETE CASCADE);";
+                "FOREIGN KEY (id_empresa) REFERENCES empresa(id) ON DELETE CASCADE, " +
+                "UNIQUE(ciudad, id_empresa));";
 
         String auditoria = "CREATE TABLE IF NOT EXISTS auditoria (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
