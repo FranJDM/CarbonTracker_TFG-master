@@ -539,7 +539,7 @@ public class GestorBD {
     }
 
     /**
-     * Actualiza los datos (nombre y sector) de una empresa existente si es necesario.
+     * Método auxiliar simple para actualizar los datos (nombre y sector) de una empresa existente si es necesario.
      *
      * @param empresa El objeto Empresa con los datos modificados.
      */
@@ -993,7 +993,7 @@ public class GestorBD {
             try (PreparedStatement psActualizar = conexion.prepareStatement(updateSede)) {
                 psActualizar.setString(1, sede.getCiudad());
                 psActualizar.setString(2, sede.getDireccion());
-                psActualizar.setLong(3, sede.getId()); // Usamos el ID para el WHERE
+                psActualizar.setLong(3, sede.getId()); // Usamos el ID para el WHERE que usamos en la query
                 psActualizar.executeUpdate();
             }
             try (PreparedStatement psModificar = conexion.prepareStatement(insertLogAudtioria)) {
@@ -1110,16 +1110,16 @@ public class GestorBD {
         String consultaLog = "SELECT a.id, a.accion, a.fecha_hora, u.nombre_usuario " +
                 "FROM auditoria a " +
                 "JOIN usuario u ON a.id_usuario = u.id " +
-                "ORDER BY a.fecha_hora DESC"; // Lo más reciente primero
+                "ORDER BY a.fecha_hora DESC"; // Posicionamos lo más reciente primero
 
-        List<AuditoriaLog> msgLogs = new ArrayList<>();
+        List<AuditoriaLog> infoAccion = new ArrayList<>();
 
         try (Connection conexion = establecerConexion();
              Statement stmt = conexion.createStatement();
              ResultSet rs = stmt.executeQuery(consultaLog)) {
 
             while (rs.next()) {
-                msgLogs.add(new AuditoriaLog(
+                infoAccion.add(new AuditoriaLog(
                         rs.getLong("id"),
                         rs.getString("accion"),
                         rs.getString("fecha_hora"),
@@ -1129,7 +1129,7 @@ public class GestorBD {
         } catch (SQLException e) {
             System.out.println("Error recuperando auditoría: " + e.getMessage());
         }
-        return msgLogs;
+        return infoAccion;
     }
 
     // ==========================================
@@ -1147,7 +1147,6 @@ public class GestorBD {
         Rol rolUsuario = roles.stream().filter(r -> r.getNomRol().equalsIgnoreCase("USUARIO")).findFirst().orElse(null);
         Rol rolCliente = roles.stream().filter(r -> r.getNomRol().equalsIgnoreCase("CLIENTE")).findFirst().orElse(null);
 
-        // MODIFICADO: Añadido 'null' como 5º parámetro (autor) porque no hay usuario logueado
         if(rolAdmin != null) crearUsuario("admin", "admin", "Profesor Admin", rolAdmin, null);
         if(rolUsuario != null) crearUsuario("empleado", "1234", "Empleado Test", rolUsuario, null);
         if(rolCliente != null) crearUsuario("cliente", "1234", "Cliente Visita", rolCliente, null);
@@ -1181,8 +1180,8 @@ public class GestorBD {
 
     public void registrarFiltro(String criterio, String orden, String contexto, Usuario usuario) {
         String sql = "INSERT INTO filtro (criterio_busqueda, ordenamiento, contexto, id_usuario) VALUES (?, ?, ?, ?)";
-        try (Connection conn = establecerConexion();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conexion = establecerConexion();
+             PreparedStatement ps = conexion.prepareStatement(sql)) {
             ps.setString(1, (criterio == null || criterio.isBlank()) ? "Todo" : criterio);
             ps.setString(2, orden);
             ps.setString(3, contexto);
@@ -1206,8 +1205,8 @@ public class GestorBD {
                 "JOIN usuario u ON f.id_usuario = u.id " +
                 "ORDER BY f.id DESC";
 
-        try (Connection conn = establecerConexion();
-             Statement st = conn.createStatement();
+        try (Connection conexion = establecerConexion();
+             Statement st = conexion.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
 
             while (rs.next()) {
@@ -1218,7 +1217,7 @@ public class GestorBD {
                 String criterio = rs.getString("criterio_busqueda");
                 String orden = rs.getString("ordenamiento");
 
-                // Montamos el "query" de los parámetros de filtrado
+                // Traducimos la consulta para mostrar los parámetros de filtrado
                 String detalle = String.format("[%s] Buscó: '%s' | Orden: %s", contexto, criterio, orden);
                 lista.add(new Modelos.AuditoriaLog(0L, detalle, fecha, usuario));
             }

@@ -141,7 +141,7 @@ public class AppCT extends Application {
         // Estilo de ventana sin decoración del SO para usar nuestra barra personalizada
         principal.initStyle(javafx.stage.StageStyle.UNDECORATED);
 
-        // --- CARGA DEL ICONO ---
+        // Cargamos el icono personalizado para nuestra aplicación (ventana y switch screen)
         try {
             // Control de carga de icono, feedback
             String rutaIcono = "/ct/Principal/logo.png";
@@ -1848,7 +1848,7 @@ public class AppCT extends Application {
         infoUsuario.setHeaderText("¿Eliminar registro de " + emision.getTipoEmision() + "?");
         infoUsuario.setContentText("Esta acción no se puede deshacer.");
         infoUsuario.getDialogPane().getStylesheets().add(getClass().getResource("style.css").toExternalForm());
-        //Se comprueba el estado de la lista después de la acción y se refresca
+        //Se comprueba el estado de la lista de las emisiones para después de la acción refrescarse
         Optional<ButtonType> estadoPostBorrado = infoUsuario.showAndWait();
         if (estadoPostBorrado.isPresent() && estadoPostBorrado.get() == ButtonType.OK) {
             gestorBD.borrarEmision(emision.getId());
